@@ -11,6 +11,7 @@ import {
   getArrowOccupiedCellsByPixel,
   gridToPixel
 } from '../lib/utils/arrow';
+import { validateArrowLayout, convertArrowDataToConfig } from '../lib/utils/validation';
 import Arrow from './Arrow';
 import Grid from './Grid';
 
@@ -40,44 +41,73 @@ const GameBoard: React.FC<GameBoardProps> = ({
     setGridData([...gridManager.getGrid()]);
   }, [gridManager]);
 
-  // 生成随机箭头
+  // 生成随机箭头（确保无死锁）
   const generateRandomArrows = useCallback(() => {
-    const newArrows: ArrowData[] = [];
-    const attempts = 100; // 最大尝试次数
+    const maxLayoutAttempts = 50; // 最大布局尝试次数
+    let layoutAttempt = 0;
+    let validLayout = false;
+    let finalArrows: ArrowData[] = [];
     
-    gridManager.reset();
-    
-    for (let i = 0; i < arrowCount; i++) {
-      let placed = false;
-      let attempt = 0;
-      const arrowId = i + 1; // 箭头ID从1开始
+    while (!validLayout && layoutAttempt < maxLayoutAttempts) {
+      const newArrows: ArrowData[] = [];
+      const attempts = 100; // 单个箭头最大尝试次数
       
-      while (!placed && attempt < attempts) {
-        const direction = getRandomDirection();
-        const row = Math.floor(Math.random() * (rows - (direction === 'up' || direction === 'down' ? 1 : 0)));
-        const col = Math.floor(Math.random() * (cols - (direction === 'left' || direction === 'right' ? 1 : 0)));
-        const position: ArrowPosition = { row, col };
+      gridManager.reset();
+      
+      // 生成所有箭头
+      let allArrowsPlaced = true;
+      for (let i = 0; i < arrowCount; i++) {
+        let placed = false;
+        let attempt = 0;
+        const arrowId = i + 1; // 箭头ID从1开始
         
-        if (canPlaceArrow(position, direction, (r, c) => gridManager.isEmpty(r, c), rows, cols)) {
-          const occupiedPositions = getArrowOccupiedPositions(position, direction);
-          gridManager.occupyPositions(occupiedPositions, arrowId);
+        while (!placed && attempt < attempts) {
+          const direction = getRandomDirection();
+          const row = Math.floor(Math.random() * (rows - (direction === 'up' || direction === 'down' ? 1 : 0)));
+          const col = Math.floor(Math.random() * (cols - (direction === 'left' || direction === 'right' ? 1 : 0)));
+          const position: ArrowPosition = { row, col };
           
-          const pixelPosition = gridToPixel(position, gridSize, 20, 20, 2);
-          newArrows.push({
-            id: arrowId,
-            direction,
-            pixelPosition,
-            isMoving: false
-          });
+          if (canPlaceArrow(position, direction, (r, c) => gridManager.isEmpty(r, c), rows, cols)) {
+            const occupiedPositions = getArrowOccupiedPositions(position, direction);
+            gridManager.occupyPositions(occupiedPositions, arrowId);
+            
+            const pixelPosition = gridToPixel(position, gridSize, 20, 20, 2);
+            newArrows.push({
+              id: arrowId,
+              direction,
+              pixelPosition,
+              isMoving: false
+            });
+            
+            placed = true;
+          }
           
-          placed = true;
+          attempt++;
         }
         
-        attempt++;
+        if (!placed) {
+          allArrowsPlaced = false;
+          break;
+        }
       }
+      
+      // 如果成功放置所有箭头，验证布局是否可解
+      if (allArrowsPlaced) {
+        const arrowConfigs = convertArrowDataToConfig(newArrows, gridSize, 20, 20, 2);
+        if (validateArrowLayout(arrowConfigs, rows, cols)) {
+          validLayout = true;
+          finalArrows = newArrows;
+        }
+      }
+      
+      layoutAttempt++;
     }
     
-    setArrows(newArrows);
+    if (!validLayout) {
+      console.warn('无法生成可解的箭头布局，将使用最后一次尝试的结果');
+    }
+    
+    setArrows(finalArrows);
     updateGridData();
   }, [arrowCount, rows, cols, gridManager, updateGridData, gridSize]);
 
