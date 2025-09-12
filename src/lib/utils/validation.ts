@@ -1,5 +1,5 @@
 // 完善的箭头死锁检测系统 - 支持相邻和长距离死锁检测
-import type { ArrowDirection, ArrowPosition } from '../types/game';
+import type { ArrowDirection, ArrowPosition, ArrowData } from '../types/game';
 import { getArrowOccupiedPositions, isPositionInBounds } from './arrow';
 
 interface ArrowConfig {
@@ -33,6 +33,32 @@ export const validateArrowLayout = (
   cols: number
 ): boolean => {
   return !detectDeadlock(arrows, rows, cols);
+};
+
+/**
+ * 将ArrowData数组转换为ArrowConfig数组
+ * @param arrowData 箭头数据数组
+ * @param gridSize 网格大小
+ * @param offsetX X偏移量
+ * @param offsetY Y偏移量
+ * @param scale 缩放比例
+ * @returns ArrowConfig数组
+ */
+export const convertArrowDataToConfig = (
+  arrowData: ArrowData[],
+  gridSize: number,
+  offsetX: number = 0,
+  offsetY: number = 0,
+  scale: number = 1
+): ArrowConfig[] => {
+  return arrowData.map(arrow => ({
+    id: arrow.id,
+    position: {
+      row: Math.floor((arrow.pixelPosition.y - offsetY) / (gridSize * scale)),
+      col: Math.floor((arrow.pixelPosition.x - offsetX) / (gridSize * scale))
+    },
+    direction: arrow.direction
+  }));
 };
 
 /**
