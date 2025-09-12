@@ -19,6 +19,11 @@ interface ArrowProps {
   onPixelPositionUpdate: (index: number, newPixelPosition: { x: number; y: number }) => void;
   isMoving: boolean;
   checkCollision: (arrowId: number, currentPixelPosition?: { x: number; y: number }) => boolean;
+  gridSize: number;
+  gridGap: number;
+  gridPadding: number;
+  gridRows: number;
+  gridCols: number;
 }
 
 const Arrow: React.FC<ArrowProps> = ({
@@ -31,14 +36,13 @@ const Arrow: React.FC<ArrowProps> = ({
   onPause,
   onPixelPositionUpdate,
   isMoving,
-  checkCollision
+  checkCollision,
+  gridSize,
+  gridGap,
+  gridPadding,
+  gridRows,
+  gridCols
 }) => {
-  // 网格相关常量
-  const GRID_SIZE = 60;
-  const GRID_GAP = 2;
-  const GRID_PADDING = 20;
-  const GRID_ROWS = 6;
-  const GRID_COLS = 6;
   
   const arrowRef = useRef<HTMLDivElement>(null);
   const [isAnimating, setIsAnimating] = useState(false);
@@ -113,7 +117,7 @@ const Arrow: React.FC<ArrowProps> = ({
       // 检查是否移出区域
       const occupiedCells = getArrowOccupiedCellsByPixel(
         newX, newY, direction,
-        GRID_SIZE, GRID_PADDING, GRID_PADDING, GRID_GAP, GRID_ROWS, GRID_COLS
+        gridSize, gridPadding, gridPadding, gridGap, gridRows, gridCols
       );
       
       if (occupiedCells.length === 0) {
@@ -145,11 +149,11 @@ const Arrow: React.FC<ArrowProps> = ({
       style={{
         top: `${pixelPosition.y}px`,
         left: `${pixelPosition.x}px`,
-        width: direction === 'left' || direction === 'right' ? `${GRID_SIZE * 2 + GRID_GAP}px` : `${GRID_SIZE}px`,
-        height: direction === 'up' || direction === 'down' ? `${GRID_SIZE * 2 + GRID_GAP}px` : `${GRID_SIZE}px`,
+        width: direction === 'left' || direction === 'right' ? `${gridSize * 2 + gridGap}px` : `${gridSize}px`,
+        height: direction === 'up' || direction === 'down' ? `${gridSize * 2 + gridGap}px` : `${gridSize}px`,
         border: isAnimating ? '2px solid red' : '2px solid transparent',
         borderRadius: '8px',
-        // backgroundColor: 'rgba(255, 255, 255, 0.9)',
+        // backgroundColor: '#a8d95f',
         zIndex: 10
       }}
       onClick={handleClick}

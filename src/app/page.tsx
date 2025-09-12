@@ -5,10 +5,11 @@ import GameBoard from '../components/GameBoard';
 export default function Home() {
   return (
     <GameBoard 
-      rows={6}
-      cols={6}
-      gridSize={60}
-      arrowCount={10}
+      rows={10}
+      cols={10}
+      gridSize={40}
+      arrowCount={20}
+      gridGap={2}
       showGridData={false}
     />
   );

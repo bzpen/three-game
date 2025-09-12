@@ -18,6 +18,7 @@ import Grid from './Grid';
 interface GameBoardProps {
   rows?: number;
   cols?: number;
+  gridGap?: number;
   gridSize?: number;
   arrowCount?: number;
   showGridData?: boolean;
@@ -26,6 +27,7 @@ interface GameBoardProps {
 const GameBoard: React.FC<GameBoardProps> = ({
   rows = 6,
   cols = 6,
+  gridGap = 2,
   gridSize = 60,
   arrowCount = 3,
   showGridData: initialShowGridData = false
@@ -35,6 +37,9 @@ const GameBoard: React.FC<GameBoardProps> = ({
   const [movingArrows, setMovingArrows] = useState<Set<number>>(new Set());
   const [gridData, setGridData] = useState<number[][]>(() => gridManager.getGrid());
   const [showGridData, setShowGridData] = useState(initialShowGridData);
+
+  const offsetX = 20;
+  const offsetY = 20;
 
   // 更新网格显示数据
   const updateGridData = useCallback(() => {
@@ -71,7 +76,7 @@ const GameBoard: React.FC<GameBoardProps> = ({
             const occupiedPositions = getArrowOccupiedPositions(position, direction);
             gridManager.occupyPositions(occupiedPositions, arrowId);
             
-            const pixelPosition = gridToPixel(position, gridSize, 20, 20, 2);
+            const pixelPosition = gridToPixel(position, gridSize, offsetX, offsetY, gridGap);
             newArrows.push({
               id: arrowId,
               direction,
@@ -93,7 +98,7 @@ const GameBoard: React.FC<GameBoardProps> = ({
       
       // 如果成功放置所有箭头，验证布局是否可解
       if (allArrowsPlaced) {
-        const arrowConfigs = convertArrowDataToConfig(newArrows, gridSize, 20, 20, 2);
+        const arrowConfigs = convertArrowDataToConfig(newArrows, gridSize, offsetX, offsetY, 2);
         if (validateArrowLayout(arrowConfigs, rows, cols)) {
           validLayout = true;
           finalArrows = newArrows;
@@ -109,7 +114,7 @@ const GameBoard: React.FC<GameBoardProps> = ({
     
     setArrows(finalArrows);
     updateGridData();
-  }, [arrowCount, rows, cols, gridManager, updateGridData, gridSize]);
+  }, [arrowCount, rows, cols, gridManager, updateGridData, gridSize, gridGap]);
 
   // 初始化生成箭头
   useEffect(() => {
@@ -137,7 +142,7 @@ const GameBoard: React.FC<GameBoardProps> = ({
             arrow.pixelPosition.x,
             arrow.pixelPosition.y,
             arrow.direction,
-            60, 20, 20, 2, rows, cols
+            gridSize, offsetX, offsetY, gridGap, rows, cols
           );
           
           if (occupiedCells.length > 0) {
@@ -156,7 +161,7 @@ const GameBoard: React.FC<GameBoardProps> = ({
     updateGridStatus();
     
     return () => clearInterval(interval);
-  }, [gridManager, updateGridData, rows, cols]); // 移除arrows依赖
+  }, [gridManager, updateGridData, rows, cols, gridSize, offsetX, offsetY, gridGap]); // 移除arrows依赖
 
   // 处理箭头开始移动
   const handleStartMove = (index: number) => {
@@ -224,7 +229,7 @@ const GameBoard: React.FC<GameBoardProps> = ({
       pixelPos.x,
       pixelPos.y,
       arrow.direction,
-      60, 20, 20, 2, rows, cols
+      gridSize, offsetX, offsetY, gridGap, rows, cols
     );
     
     // 检查当前占据的格子中是否有被其他箭头占据的
@@ -239,10 +244,10 @@ const GameBoard: React.FC<GameBoardProps> = ({
     }
     
     return false; // 无侵入
-  }, [arrows, gridManager, rows, cols]);
+  }, [arrows, gridManager, rows, cols, gridGap, gridSize, offsetX, offsetY]);
 
 
-  const boardSize = gridSize * cols + 40; // 包含padding
+  const boardSize = gridSize * cols + 40 + 2 * (cols -1); // 包含padding
 
   return (
     <div className="h-screen w-screen overflow-hidden bg-gray-100 flex items-center justify-center">
@@ -265,15 +270,16 @@ const GameBoard: React.FC<GameBoardProps> = ({
         
         {/* 游戏区域 */}
         <div 
-          className="relative bg-white border-4 border-gray-300 shadow-lg"
+          className="relative bg-white shadow-lg"
           style={{ width: `${boardSize}px`, height: `${boardSize}px` }}
         >
           {/* 网格背景 */}
-          <Grid 
+          <Grid
             rows={rows}
             cols={cols}
             gridSize={gridSize}
             gridData={gridData}
+            gridGap={gridGap}
             showGridData={showGridData}
           />
           
@@ -291,6 +297,11 @@ const GameBoard: React.FC<GameBoardProps> = ({
                 onPixelPositionUpdate={handlePixelPositionUpdate}
                 isMoving={arrow.isMoving}
                 checkCollision={checkCollision}
+                gridSize={gridSize}
+                gridGap={gridGap}
+                gridPadding={offsetX}
+                gridRows={rows}
+                gridCols={cols}
               />
             </div>
           ))}

@@ -79,7 +79,7 @@ export const gridToPixel = (
   gap: number = 2 // grid gap-0.5 = 2px
 ): PixelPosition => {
   return {
-    x: gridPos.col * (gridSize + gap) + offsetX,
+    x: (gridPos.col) * (gridSize + gap) + offsetX,
     y: gridPos.row * (gridSize + gap) + offsetY
   };
 };

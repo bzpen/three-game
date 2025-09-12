@@ -5,6 +5,7 @@ import React from 'react';
 interface GridProps {
   rows: number;
   cols: number;
+  gridGap: number;
   gridSize: number;
   gridData?: number[][];
   showGridData?: boolean;
@@ -15,16 +16,18 @@ const Grid: React.FC<GridProps> = ({
   cols, 
   gridSize, 
   gridData, 
+  gridGap = 2,
   showGridData = false 
 }) => {
   const totalCells = rows * cols;
 
   return (
     <div 
-      className="grid gap-0.5 p-5 h-full w-full"
+      className="grid p-5 h-full w-full"
       style={{ 
         gridTemplateColumns: `repeat(${cols}, 1fr)`,
-        gridTemplateRows: `repeat(${rows}, 1fr)`
+        gridTemplateRows: `repeat(${rows}, 1fr)`,
+        gap: `${gridGap}px`
       }}
     >
       {Array.from({ length: totalCells }).map((_, index) => {
@@ -35,7 +38,7 @@ const Grid: React.FC<GridProps> = ({
         return (
           <div 
             key={index}
-            className={`border border-gray-200 flex items-center justify-center text-xs font-mono ${
+            className={`flex items-center justify-center text-xs font-mono ${
               cellValue === 1 ? 'bg-blue-200' : 
               cellValue === 2 ? 'bg-green-200' : 
               cellValue === 3 ? 'bg-yellow-200' : 
