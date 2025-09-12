@@ -20,11 +20,221 @@ export const validateArrowLayout = (
   rows: number,
   cols: number
 ): boolean => {
-  // 创建网格状态
+  // 使用新的死锁检测算法
+  return !detectDeadlock(arrows, rows, cols);
+};
+
+/**
+ * 检测是否存在死锁
+ * @param arrows 箭头配置数组
+ * @param rows 网格行数
+ * @param cols 网格列数
+ * @returns true表示存在死锁，false表示无死锁
+ */
+export const detectDeadlock = (
+  arrows: ArrowConfig[],
+  rows: number,
+  cols: number
+): boolean => {
+  return detectHorizontalDeadlock(arrows) ||
+         detectVerticalDeadlock(arrows) ||
+         detectCyclicDeadlock(arrows, rows, cols);
+};
+
+/**
+ * 检测水平相互阻挡死锁
+ * @param arrows 箭头配置数组
+ * @returns true表示存在水平死锁
+ */
+const detectHorizontalDeadlock = (arrows: ArrowConfig[]): boolean => {
+  const horizontalArrows = arrows.filter(arrow => 
+    arrow.direction === 'left' || arrow.direction === 'right'
+  );
+  
+  for (let i = 0; i < horizontalArrows.length; i++) {
+    for (let j = i + 1; j < horizontalArrows.length; j++) {
+      const arrow1 = horizontalArrows[i];
+      const arrow2 = horizontalArrows[j];
+      
+      // 检查是否在同一行且相邻
+      if (arrow1.position.row === arrow2.position.row) {
+        const isAdjacent = Math.abs(arrow1.position.col - arrow2.position.col) === 2;
+        const isFacing = (
+          (arrow1.direction === 'right' && arrow2.direction === 'left' && 
+           arrow1.position.col < arrow2.position.col) ||
+          (arrow1.direction === 'left' && arrow2.direction === 'right' && 
+           arrow1.position.col > arrow2.position.col)
+        );
+        
+        if (isAdjacent && isFacing) {
+          return true; // 发现水平死锁
+        }
+      }
+    }
+  }
+  
+  return false;
+};
+
+/**
+ * 检测垂直相互阻挡死锁
+ * @param arrows 箭头配置数组
+ * @returns true表示存在垂直死锁
+ */
+const detectVerticalDeadlock = (arrows: ArrowConfig[]): boolean => {
+  const verticalArrows = arrows.filter(arrow => 
+    arrow.direction === 'up' || arrow.direction === 'down'
+  );
+  
+  for (let i = 0; i < verticalArrows.length; i++) {
+    for (let j = i + 1; j < verticalArrows.length; j++) {
+      const arrow1 = verticalArrows[i];
+      const arrow2 = verticalArrows[j];
+      
+      // 检查是否在同一列且相邻
+      if (arrow1.position.col === arrow2.position.col) {
+        const isAdjacent = Math.abs(arrow1.position.row - arrow2.position.row) === 2;
+        const isFacing = (
+          (arrow1.direction === 'down' && arrow2.direction === 'up' && 
+           arrow1.position.row < arrow2.position.row) ||
+          (arrow1.direction === 'up' && arrow2.direction === 'down' && 
+           arrow1.position.row > arrow2.position.row)
+        );
+        
+        if (isAdjacent && isFacing) {
+          return true; // 发现垂直死锁
+        }
+      }
+    }
+  }
+  
+  return false;
+};
+
+/**
+ * 检测环形循环依赖死锁
+ * @param arrows 箭头配置数组
+ * @param rows 网格行数
+ * @param cols 网格列数
+ * @returns true表示存在环形死锁
+ */
+const detectCyclicDeadlock = (
+  arrows: ArrowConfig[],
+  rows: number,
+  cols: number
+): boolean => {
   const grid = createGridFromArrows(arrows, rows, cols);
   
-  // 使用回溯算法检测是否存在解决方案
-  return canSolveLayout(arrows.slice(), grid, rows, cols);
+  // 构建依赖图
+  const dependencies = new Map<number, number[]>();
+  
+  arrows.forEach(arrow => {
+    const blockers = getBlockingArrows(arrow, arrows, grid, rows, cols);
+    dependencies.set(arrow.id, blockers);
+  });
+  
+  // 检测循环依赖
+  return hasCycle(dependencies);
+};
+
+/**
+ * 获取阻挡指定箭头的箭头列表
+ */
+const getBlockingArrows = (
+  arrow: ArrowConfig,
+  allArrows: ArrowConfig[],
+  grid: number[][],
+  rows: number,
+  cols: number
+): number[] => {
+  const blockers: number[] = [];
+  const { position, direction } = arrow;
+  
+  // 根据方向获取移动路径上的阻挡箭头
+  const checkPositions: ArrowPosition[] = [];
+  
+  switch (direction) {
+    case 'up':
+      for (let row = position.row - 1; row >= 0; row--) {
+        checkPositions.push({ row, col: position.col });
+      }
+      break;
+    case 'down':
+      for (let row = position.row + 2; row < rows; row++) {
+        checkPositions.push({ row, col: position.col });
+      }
+      break;
+    case 'left':
+      for (let col = position.col - 1; col >= 0; col--) {
+        checkPositions.push({ row: position.row, col });
+      }
+      break;
+    case 'right':
+      for (let col = position.col + 2; col < cols; col++) {
+        checkPositions.push({ row: position.row, col });
+      }
+      break;
+  }
+  
+  // 找到第一个阻挡的箭头
+  for (const pos of checkPositions) {
+    if (isPositionInBounds(pos, rows, cols)) {
+      const cellValue = grid[pos.row][pos.col];
+      if (cellValue !== 0 && cellValue !== arrow.id) {
+        blockers.push(cellValue);
+        break; // 只需要第一个阻挡者
+      }
+    }
+  }
+  
+  return blockers;
+};
+
+/**
+ * 检测依赖图中是否存在循环
+ */
+const hasCycle = (dependencies: Map<number, number[]>): boolean => {
+  const visited = new Set<number>();
+  const recursionStack = new Set<number>();
+  
+  for (const nodeId of dependencies.keys()) {
+    if (hasCycleDFS(nodeId, dependencies, visited, recursionStack)) {
+      return true;
+    }
+  }
+  
+  return false;
+};
+
+/**
+ * 使用DFS检测循环
+ */
+const hasCycleDFS = (
+  nodeId: number,
+  dependencies: Map<number, number[]>,
+  visited: Set<number>,
+  recursionStack: Set<number>
+): boolean => {
+  if (recursionStack.has(nodeId)) {
+    return true; // 发现循环
+  }
+  
+  if (visited.has(nodeId)) {
+    return false; // 已访问过且无循环
+  }
+  
+  visited.add(nodeId);
+  recursionStack.add(nodeId);
+  
+  const deps = dependencies.get(nodeId) || [];
+  for (const depId of deps) {
+    if (hasCycleDFS(depId, dependencies, visited, recursionStack)) {
+      return true;
+    }
+  }
+  
+  recursionStack.delete(nodeId);
+  return false;
 };
 
 /**
@@ -49,116 +259,6 @@ const createGridFromArrows = (
   return grid;
 };
 
-/**
- * 检查箭头是否可以移动（移动方向上没有其他箭头阻挡）
- */
-const canArrowMove = (
-  arrow: ArrowConfig,
-  grid: number[][],
-  rows: number,
-  cols: number
-): boolean => {
-  const { position, direction, id } = arrow;
-  const occupiedPositions = getArrowOccupiedPositions(position, direction);
-  
-  // 根据方向确定检查的路径
-  let checkPositions: ArrowPosition[] = [];
-  
-  switch (direction) {
-    case 'up':
-      // 向上移动，检查箭头上方的所有位置
-      for (let row = position.row - 1; row >= 0; row--) {
-        checkPositions.push({ row, col: position.col });
-      }
-      break;
-    case 'down':
-      // 向下移动，检查箭头下方的所有位置
-      for (let row = position.row + 2; row < rows; row++) {
-        checkPositions.push({ row, col: position.col });
-      }
-      break;
-    case 'left':
-      // 向左移动，检查箭头左方的所有位置
-      for (let col = position.col - 1; col >= 0; col--) {
-        checkPositions.push({ row: position.row, col });
-      }
-      break;
-    case 'right':
-      // 向右移动，检查箭头右方的所有位置
-      for (let col = position.col + 2; col < cols; col++) {
-        checkPositions.push({ row: position.row, col });
-      }
-      break;
-  }
-  
-  // 检查路径上是否有其他箭头阻挡
-  for (const pos of checkPositions) {
-    if (isPositionInBounds(pos, rows, cols)) {
-      const cellValue = grid[pos.row][pos.col];
-      if (cellValue !== 0 && cellValue !== id) {
-        return false; // 被其他箭头阻挡
-      }
-    }
-  }
-  
-  return true; // 可以移动
-};
-
-/**
- * 移除箭头后更新网格状态
- */
-const removeArrowFromGrid = (
-  arrow: ArrowConfig,
-  grid: number[][],
-  rows: number,
-  cols: number
-): number[][] => {
-  const newGrid = grid.map(row => [...row]);
-  const occupiedPositions = getArrowOccupiedPositions(arrow.position, arrow.direction);
-  
-  occupiedPositions.forEach(pos => {
-    if (isPositionInBounds(pos, rows, cols)) {
-      newGrid[pos.row][pos.col] = 0;
-    }
-  });
-  
-  return newGrid;
-};
-
-/**
- * 使用回溯算法检测布局是否可解
- */
-const canSolveLayout = (
-  remainingArrows: ArrowConfig[],
-  grid: number[][],
-  rows: number,
-  cols: number
-): boolean => {
-  // 如果没有箭头了，说明找到了解决方案
-  if (remainingArrows.length === 0) {
-    return true;
-  }
-  
-  // 尝试移动每个箭头
-  for (let i = 0; i < remainingArrows.length; i++) {
-    const arrow = remainingArrows[i];
-    
-    // 检查这个箭头是否可以移动
-    if (canArrowMove(arrow, grid, rows, cols)) {
-      // 创建移除这个箭头后的新状态
-      const newGrid = removeArrowFromGrid(arrow, grid, rows, cols);
-      const newRemainingArrows = remainingArrows.filter((_, index) => index !== i);
-      
-      // 递归检查剩余箭头
-      if (canSolveLayout(newRemainingArrows, newGrid, rows, cols)) {
-        return true;
-      }
-    }
-  }
-  
-  // 没有找到解决方案
-  return false;
-};
 
 /**
  * 检查单个箭头在当前布局下是否可以移动
@@ -180,7 +280,8 @@ export const canSingleArrowMove = (
   }
   
   const grid = createGridFromArrows(arrows, rows, cols);
-  return canArrowMove(targetArrow, grid, rows, cols);
+  const blockers = getBlockingArrows(targetArrow, arrows, grid, rows, cols);
+  return blockers.length === 0;
 };
 
 /**
@@ -199,7 +300,8 @@ export const getMovableArrows = (
   const movableArrows: number[] = [];
   
   arrows.forEach(arrow => {
-    if (canArrowMove(arrow, grid, rows, cols)) {
+    const blockers = getBlockingArrows(arrow, arrows, grid, rows, cols);
+    if (blockers.length === 0) {
       movableArrows.push(arrow.id);
     }
   });
