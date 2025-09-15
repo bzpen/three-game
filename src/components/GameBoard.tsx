@@ -1,18 +1,14 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { GridManager } from '../lib/managers/GridManager';
-import type { ArrowPosition, ArrowData } from '../lib/types/game';
-import { 
-  getArrowOccupiedPositions,
-  getRandomDirection,
-  canPlaceArrow,
-  isPositionInBounds,
-  getArrowOccupiedCellsByPixel,
-  gridToPixel
-} from '../lib/utils/arrow';
-import { validateArrowLayout, convertArrowDataToConfig } from '../lib/utils/validation';
-import Arrow from './Arrow';
+import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
+import { useAppDispatch, useAppSelector } from '../lib/hooks/redux';
+import type { RootState } from '../lib/store';
+import { updateConfig, resetGrid } from '../lib/store/levelSlice';
+import { ArrowManagerWithRef, type ArrowManagerRef } from './ArrowManager';
+import { ArrowController, type ArrowControllerConfig } from '../lib/controllers/ArrowController';
+import { StaticLevelService } from '../lib/services/StaticLevelService';
+import type { ArrowData } from '../lib/types/game';
+import type { LevelData } from '../lib/types/level';
 import Grid from './Grid';
 
 interface GameBoardProps {
@@ -32,234 +28,313 @@ const GameBoard: React.FC<GameBoardProps> = ({
   arrowCount = 3,
   showGridData: initialShowGridData = false
 }) => {
-  const [gridManager] = useState(() => new GridManager(rows, cols));
-  const [arrows, setArrows] = useState<ArrowData[]>([]);
-  const [movingArrows, setMovingArrows] = useState<Set<number>>(new Set());
-  const [gridData, setGridData] = useState<number[][]>(() => gridManager.getGrid());
+  const dispatch = useAppDispatch();
+  const stateConfig = useAppSelector((state: RootState) => state.level.config);
+  const stateGridData = useAppSelector((state: RootState) => state.level.gridData);
+  
+  const config = useMemo(() => {
+    return stateConfig || {
+      rows, cols, gridGap, gridSize, arrowCount, offsetX: 20, offsetY: 20
+    };
+  }, [stateConfig, rows, cols, gridGap, gridSize, arrowCount]);
+  
+  const gridData = stateGridData || [];
+
   const [showGridData, setShowGridData] = useState(initialShowGridData);
+  const [isLoading, setIsLoading] = useState(false);
+  const [currentArrows, setCurrentArrows] = useState<ArrowData[]>([]);
+  const [currentLevel, setCurrentLevel] = useState<LevelData | null>(null);
+  const [availableLevels, setAvailableLevels] = useState<LevelData[]>([]);
+  const [isRandomMode, setIsRandomMode] = useState(false);
+  
+  const arrowManagerRef = useRef<ArrowManagerRef>(null);
+  const arrowController = useRef(ArrowController.getInstance());
+  const staticLevelService = useRef(StaticLevelService.getInstance());
 
-  const offsetX = 20;
-  const offsetY = 20;
-
-  // 更新网格显示数据
-  const updateGridData = useCallback(() => {
-    setGridData([...gridManager.getGrid()]);
-  }, [gridManager]);
-
-  // 生成随机箭头（确保无死锁）
-  const generateRandomArrows = useCallback(() => {
-    const maxLayoutAttempts = 50; // 最大布局尝试次数
-    let layoutAttempt = 0;
-    let validLayout = false;
-    let finalArrows: ArrowData[] = [];
+  // 加载关卡
+  const loadLevel = useCallback(async (level: LevelData) => {
+    setIsLoading(true);
     
-    while (!validLayout && layoutAttempt < maxLayoutAttempts) {
-      const newArrows: ArrowData[] = [];
-      const attempts = 100; // 单个箭头最大尝试次数
+    try {
+      // 转换关卡箭头数据为运行时数据
+      const arrows = staticLevelService.current.convertLevelArrowsToRuntime(level);
       
-      gridManager.reset();
+      setCurrentLevel(level);
+      setCurrentArrows(arrows);
+      setIsRandomMode(false);
       
-      // 生成所有箭头
-      let allArrowsPlaced = true;
-      for (let i = 0; i < arrowCount; i++) {
-        let placed = false;
-        let attempt = 0;
-        const arrowId = i + 1; // 箭头ID从1开始
-        
-        while (!placed && attempt < attempts) {
-          const direction = getRandomDirection();
-          const row = Math.floor(Math.random() * (rows - (direction === 'up' || direction === 'down' ? 1 : 0)));
-          const col = Math.floor(Math.random() * (cols - (direction === 'left' || direction === 'right' ? 1 : 0)));
-          const position: ArrowPosition = { row, col };
-          
-          if (canPlaceArrow(position, direction, (r, c) => gridManager.isEmpty(r, c), rows, cols)) {
-            const occupiedPositions = getArrowOccupiedPositions(position, direction);
-            gridManager.occupyPositions(occupiedPositions, arrowId);
-            
-            const pixelPosition = gridToPixel(position, gridSize, offsetX, offsetY, gridGap);
-            newArrows.push({
-              id: arrowId,
-              direction,
-              pixelPosition,
-              isMoving: false
-            });
-            
-            placed = true;
-          }
-          
-          attempt++;
-        }
-        
-        if (!placed) {
-          allArrowsPlaced = false;
-          break;
-        }
+      // 更新配置以匹配关卡
+      dispatch(updateConfig(level.config));
+      
+      // 通过ref设置箭头到ArrowManager
+      if (arrowManagerRef.current) {
+        arrowManagerRef.current.setArrows(arrows);
       }
       
-      // 如果成功放置所有箭头，验证布局是否可解
-      if (allArrowsPlaced) {
-        const arrowConfigs = convertArrowDataToConfig(newArrows, gridSize, offsetX, offsetY, 2);
-        if (validateArrowLayout(arrowConfigs, rows, cols)) {
-          validLayout = true;
-          finalArrows = newArrows;
-        }
-      }
-      
-      layoutAttempt++;
+      console.log(`✓ 关卡加载成功: ${level.name}`);
+    } catch (error) {
+      console.error('加载关卡时发生错误:', error);
+    } finally {
+      setIsLoading(false);
     }
-    
-    if (!validLayout) {
-      console.warn('无法生成可解的箭头布局，将使用最后一次尝试的结果');
-    }
-    
-    setArrows(finalArrows);
-    updateGridData();
-  }, [arrowCount, rows, cols, gridManager, updateGridData, gridSize, gridGap]);
+  }, [dispatch]);
 
-  // 初始化生成箭头
+  // 生成随机箭头（稳定版本，不依赖变化的config）
+  const generateRandomArrows = useCallback(async () => {
+    setIsLoading(true);
+    
+    try {
+      // 使用当前的稳定配置，避免依赖频繁变化的config
+      const currentConfig = stateConfig || {
+        rows, cols, gridGap, gridSize, arrowCount, offsetX: 20, offsetY: 20
+      };
+      
+      const arrowConfig: ArrowControllerConfig = {
+        rows: currentConfig.rows,
+        cols: currentConfig.cols,
+        gridGap: currentConfig.gridGap,
+        gridSize: currentConfig.gridSize,
+        arrowCount: currentConfig.arrowCount,
+        offsetX: currentConfig.offsetX,
+        offsetY: currentConfig.offsetY,
+      };
+
+      const result = await arrowController.current.generateArrows(arrowConfig);
+      
+      if (result.success) {
+        setCurrentArrows(result.arrows);
+        setCurrentLevel(null);
+        setIsRandomMode(true);
+        
+        // 通过ref设置箭头到ArrowManager
+        if (arrowManagerRef.current) {
+          arrowManagerRef.current.setArrows(result.arrows);
+        }
+      } else {
+        console.warn('随机箭头生成失败');
+        setCurrentArrows([]);
+      }
+    } catch (error) {
+      console.error('生成随机箭头时发生错误:', error);
+      setCurrentArrows([]);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [stateConfig, rows, cols, gridGap, gridSize, arrowCount]); // 使用稳定的依赖
+
+  // 加载静态关卡数据
   useEffect(() => {
+    let isMounted = true; // 防止组件卸载后的状态更新
+    
+    const loadLevels = async () => {
+      if (!isMounted) return;
+      
+      setIsLoading(true);
+      try {
+        await staticLevelService.current.loadDefaultLevels();
+        if (!isMounted) return;
+        
+        const levels = staticLevelService.current.getAllLevels();
+        setAvailableLevels(levels);
+        
+        // 如果有关卡，默认加载第一个
+        if (levels.length > 0 && isMounted) {
+          const firstLevel = levels[0];
+          
+          // 直接处理关卡加载，避免useCallback依赖
+          try {
+            const arrows = staticLevelService.current.convertLevelArrowsToRuntime(firstLevel);
+            
+            if (isMounted) {
+              setCurrentLevel(firstLevel);
+              setCurrentArrows(arrows);
+              setIsRandomMode(false);
+              dispatch(updateConfig(firstLevel.config));
+              
+              // 通过ref设置箭头到ArrowManager
+              if (arrowManagerRef.current) {
+                arrowManagerRef.current.setArrows(arrows);
+              }
+              
+              console.log(`✓ 关卡加载成功: ${firstLevel.name}`);
+            }
+          } catch (levelError) {
+            console.error('加载首个关卡失败:', levelError);
+            if (isMounted) {
+              setIsRandomMode(true);
+              // 生成随机箭头的逻辑
+              generateRandomArrowsInternal();
+            }
+          }
+        } else if (isMounted) {
+          // 如果没有关卡，切换到随机模式
+          setIsRandomMode(true);
+          generateRandomArrowsInternal();
+        }
+      } catch (error) {
+        console.error('加载关卡失败:', error);
+        if (isMounted) {
+          // 失败时切换到随机模式
+          setIsRandomMode(true);
+          generateRandomArrowsInternal();
+        }
+      } finally {
+        if (isMounted) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    // 内部随机箭头生成函数，避免外部依赖
+    const generateRandomArrowsInternal = async () => {
+      if (!isMounted) return;
+      
+      try {
+        const currentConfig = stateConfig || {
+          rows, cols, gridGap, gridSize, arrowCount, offsetX: 20, offsetY: 20
+        };
+        
+        const arrowConfig: ArrowControllerConfig = {
+          rows: currentConfig.rows,
+          cols: currentConfig.cols,
+          gridGap: currentConfig.gridGap,
+          gridSize: currentConfig.gridSize,
+          arrowCount: currentConfig.arrowCount,
+          offsetX: currentConfig.offsetX,
+          offsetY: currentConfig.offsetY,
+        };
+
+        const result = await arrowController.current.generateArrows(arrowConfig);
+        
+        if (isMounted && result.success) {
+          setCurrentArrows(result.arrows);
+          setCurrentLevel(null);
+          setIsRandomMode(true);
+          
+          // 通过ref设置箭头到ArrowManager
+          if (arrowManagerRef.current) {
+            arrowManagerRef.current.setArrows(result.arrows);
+          }
+        } else if (isMounted) {
+          console.warn('随机箭头生成失败');
+          setCurrentArrows([]);
+        }
+      } catch (error) {
+        console.error('生成随机箭头时发生错误:', error);
+        if (isMounted) {
+          setCurrentArrows([]);
+        }
+      }
+    };
+
+    loadLevels();
+    
+    // 清理函数
+    return () => {
+      isMounted = false;
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // 故意只在挂载时执行一次，避免循环依赖导致的死锁
+
+  // 初始化配置 - 只在组件挂载时设置一次，避免频繁更新
+  useEffect(() => {
+    // 只有当Redux中没有配置时才初始化
+    if (!stateConfig) {
+      dispatch(updateConfig({
+        rows,
+        cols,
+        gridGap,
+        gridSize,
+        arrowCount,
+        offsetX: 20,
+        offsetY: 20,
+      }));
+    }
+  }, [dispatch, stateConfig, rows, cols, gridGap, gridSize, arrowCount]);
+
+  // 重新加载当前内容
+  const handleReload = useCallback(() => {
+    // 重置网格
+    dispatch(resetGrid());
+    // 清空当前箭头
+    if (arrowManagerRef.current) {
+      arrowManagerRef.current.clearArrows();
+    }
+    
+    if (isRandomMode) {
+      generateRandomArrows();
+    } else if (currentLevel) {
+      loadLevel(currentLevel);
+    }
+  }, [dispatch, isRandomMode, currentLevel, generateRandomArrows, loadLevel]);
+
+  // 切换到随机模式
+  const switchToRandomMode = useCallback(() => {
+    setCurrentLevel(null);
     generateRandomArrows();
   }, [generateRandomArrows]);
 
-  // 使用useRef来保存最新的arrows状态，避免useEffect依赖
-  const arrowsRef = useRef(arrows);
-  arrowsRef.current = arrows;
-
-  // 定时更新网格状态
-  useEffect(() => {
-    const updateGridStatus = () => {
-      // 重置网格
-      gridManager.reset();
-      
-      // 使用ref获取最新的arrows状态
-      const currentArrows = arrowsRef.current;
-      
-      // 遍历所有箭头，计算它们当前占据的格子
-      currentArrows.forEach((arrow: ArrowData) => {
-        if (arrow && arrow.pixelPosition) {
-          // 使用箭头当前的像素位置计算占据的格子
-          const occupiedCells = getArrowOccupiedCellsByPixel(
-            arrow.pixelPosition.x,
-            arrow.pixelPosition.y,
-            arrow.direction,
-            gridSize, offsetX, offsetY, gridGap, rows, cols
-          );
-          
-          if (occupiedCells.length > 0) {
-            gridManager.occupyPositions(occupiedCells, arrow.id);
-          }
-        }
-      });
-      
-      updateGridData();
-    };
-
-    // 每50ms更新一次网格状态
-    const interval = setInterval(updateGridStatus, 50);
-    
-    // 立即执行一次
-    updateGridStatus();
-    
-    return () => clearInterval(interval);
-  }, [gridManager, updateGridData, rows, cols, gridSize, offsetX, offsetY, gridGap]); // 移除arrows依赖
-
-  // 处理箭头开始移动
-  const handleStartMove = (index: number) => {
-    setMovingArrows(prev => new Set(prev).add(index));
-    setArrows(prev => prev.map((arrow, i) => 
-      i === index ? { ...arrow, isMoving: true } : arrow
-    ));
-  };
-
-  // 处理箭头暂停
-  const handleArrowPause = (index: number) => {
-    setMovingArrows(prev => {
-      const newSet = new Set(prev);
-      newSet.delete(index);
-      return newSet;
-    });
-    setArrows(prev => prev.map((arrow, i) => 
-      i === index ? { ...arrow, isMoving: false } : arrow
-    ));
-  };
-
-  // 处理箭头像素位置更新（由Arrow组件调用）
-  const handlePixelPositionUpdate = useCallback((index: number, newPixelPosition: { x: number; y: number }) => {
-    setArrows(prev => prev.map((arrow, i) => 
-      i === index ? { 
-        ...arrow, 
-        pixelPosition: newPixelPosition
-      } : arrow
-    ));
+  // 处理网格更新回调
+  const handleGridUpdate = useCallback(() => {
+    // ArrowManager已经通过dispatch更新了Redux
   }, []);
 
-  // 处理箭头移出区域（销毁）
-  const handleArrowMove = (index: number) => {
-    setTimeout(() => {
-      setArrows(prev => prev.filter((_, i) => i !== index));
-      setMovingArrows(prev => {
-        const newSet = new Set<number>();
-        prev.forEach(i => {
-          if (i < index) newSet.add(i);
-          else if (i > index) newSet.add(i - 1);
-        });
-        return newSet;
-      });
-    }, 100);
-  };
-
-
-
-  // 检查碰撞（基于当前位置的侵入检测）
-  const checkCollision = useCallback((arrowId: number, currentPixelPosition?: { x: number; y: number }): boolean => {
-    // 通过ID找到对应的箭头，而不是依赖索引
-    const arrow = arrows.find(arr => arr.id === arrowId);
-    if (!arrow) {
-      return false;
-    }
-
-    // 优先使用传入的实时像素位置，如果没有则使用状态中的位置
-    const pixelPos = currentPixelPosition || arrow.pixelPosition;
-    if (!pixelPos) {
-      return false;
-    }
-
-    // 获取箭头当前位置占据的所有格子
-    const currentOccupiedCells = getArrowOccupiedCellsByPixel(
-      pixelPos.x,
-      pixelPos.y,
-      arrow.direction,
-      gridSize, offsetX, offsetY, gridGap, rows, cols
-    );
-    
-    // 检查当前占据的格子中是否有被其他箭头占据的
-    for (const cell of currentOccupiedCells) {
-      if (isPositionInBounds(cell, rows, cols)) {
-        const cellValue = gridManager.getValue(cell.row, cell.col);
-        // 如果格子被其他箭头占据（不是空格也不是自己的ID），说明发生了侵入
-        if (cellValue !== 0 && cellValue !== arrow.id) {
-          return true; // 发生侵入碰撞
-        }
-      }
-    }
-    
-    return false; // 无侵入
-  }, [arrows, gridManager, rows, cols, gridGap, gridSize, offsetX, offsetY]);
-
-
-  const boardSize = gridSize * cols + 40 + 2 * (cols -1); // 包含padding
+  const boardSize = config.gridSize * config.cols + 40 + 2 * (config.cols - 1);
 
   return (
     <div className="h-screen w-screen overflow-hidden bg-gray-100 flex items-center justify-center">
       <div className="flex flex-col items-center gap-4">
         {/* 控制按钮 */}
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2 items-center">
+          {/* 关卡选择 */}
+          {availableLevels.length > 0 && (
+            <>
+              <select 
+                onChange={(e) => {
+                  const selectedLevel = availableLevels.find(level => level.id === e.target.value);
+                  if (selectedLevel) {
+                    loadLevel(selectedLevel);
+                  }
+                }}
+                value={currentLevel?.id || ''}
+                disabled={isLoading}
+                className="px-3 py-2 border rounded bg-white"
+              >
+                <option value="">选择关卡...</option>
+                {availableLevels.map(level => (
+                  <option key={level.id} value={level.id}>
+                    {level.name} ({level.difficulty})
+                  </option>
+                ))}
+              </select>
+              
+              <div className="h-6 border-l border-gray-300"></div>
+            </>
+          )}
+          
+          {/* 随机模式切换 */}
           <button 
-            onClick={generateRandomArrows}
-            className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+            onClick={switchToRandomMode}
+            disabled={isLoading}
+            className={`px-4 py-2 rounded text-white ${
+              isRandomMode 
+                ? 'bg-purple-600' 
+                : 'bg-purple-500 hover:bg-purple-600'
+            } disabled:bg-gray-400`}
           >
-            重新生成箭头
+            随机模式
           </button>
+          
+          {/* 重新加载 */}
+          <button 
+            onClick={handleReload}
+            disabled={isLoading}
+            className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:bg-gray-400"
+          >
+            {isLoading ? '加载中...' : '重新加载'}
+          </button>
+          
+          {/* 显示网格状态 */}
           <button 
             onClick={() => setShowGridData(!showGridData)}
             className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600"
@@ -275,43 +350,44 @@ const GameBoard: React.FC<GameBoardProps> = ({
         >
           {/* 网格背景 */}
           <Grid
-            rows={rows}
-            cols={cols}
-            gridSize={gridSize}
+            rows={config.rows}
+            cols={config.cols}
+            gridSize={config.gridSize}
             gridData={gridData}
-            gridGap={gridGap}
+            gridGap={config.gridGap}
             showGridData={showGridData}
           />
           
-          {/* 箭头 */}
-          {arrows.map((arrow, index) => (
-            <div key={`arrow-${index}`} data-arrow-index={index}>
-              <Arrow 
-                direction={arrow.direction}
-                pixelPosition={arrow.pixelPosition}
-                index={index}
-                arrowId={arrow.id}
-                onMove={handleArrowMove}
-                onStartMove={handleStartMove}
-                onPause={handleArrowPause}
-                onPixelPositionUpdate={handlePixelPositionUpdate}
-                isMoving={arrow.isMoving}
-                checkCollision={checkCollision}
-                gridSize={gridSize}
-                gridGap={gridGap}
-                gridPadding={offsetX}
-                gridRows={rows}
-                gridCols={cols}
-              />
-            </div>
-          ))}
+          {/* 箭头管理器 */}
+          <ArrowManagerWithRef
+            ref={arrowManagerRef}
+            arrows={currentArrows}
+            onGridUpdate={handleGridUpdate}
+          />
         </div>
         
         {/* 状态显示 */}
         <div className="text-sm text-gray-600">
-          <p>箭头数量: {arrows.length}</p>
-          <p>移动中: {movingArrows.size}</p>
+          <p>模式: {isRandomMode ? '随机模式' : '关卡模式'}</p>
+          {currentLevel && (
+            <p>当前关卡: {currentLevel.name} ({currentLevel.difficulty})</p>
+          )}
+          <p>关卡尺寸: {config.rows}x{config.cols}</p>
+          <p>当前箭头数量: {currentArrows.length}</p>
+          <p>网格大小: {config.gridSize}px</p>
+          <p>可用关卡: {availableLevels.length} 个</p>
+          {isLoading && <p className="text-blue-500">正在加载...</p>}
         </div>
+
+        {/* 开发者提示 */}
+        {process.env.NODE_ENV === 'development' && (
+          <div className="mt-4 p-3 bg-yellow-100 border border-yellow-300 rounded text-sm">
+            <p className="font-medium text-yellow-800">开发者模式</p>
+            <p className="text-yellow-700">
+              访问 <a href="/level-editor" className="underline">/level-editor</a> 来制作新关卡
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );
