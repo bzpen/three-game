@@ -60,8 +60,8 @@ export const pixelToGrid = (
   pixelX: number, 
   pixelY: number, 
   gridSize: number = 60, 
-  offsetX: number = 20, 
-  offsetY: number = 20,
+  offsetX: number = 0, 
+  offsetY: number = 0,
   gap: number = 2 // grid gap-0.5 = 2px
 ): ArrowPosition => {
   return {
@@ -74,8 +74,8 @@ export const pixelToGrid = (
 export const gridToPixel = (
   gridPos: ArrowPosition, 
   gridSize: number = 60, 
-  offsetX: number = 20, 
-  offsetY: number = 20,
+  offsetX: number = 0, 
+  offsetY: number = 0,
   gap: number = 2 // grid gap-0.5 = 2px
 ): PixelPosition => {
   return {
@@ -107,8 +107,8 @@ export const getArrowOccupiedCellsByPixel = (
   pixelY: number,
   direction: ArrowDirection,
   gridSize: number = 60,
-  offsetX: number = 20,
-  offsetY: number = 20,
+  offsetX: number = 0,
+  offsetY: number = 0,
   gap: number = 2,
   maxRows: number = 6,
   maxCols: number = 6
@@ -163,8 +163,8 @@ export const adjustToValidGridPosition = (
   currentPixelY: number,
   direction: ArrowDirection,
   gridSize: number = 60,
-  offsetX: number = 20,
-  offsetY: number = 20,
+  offsetX: number = 0,
+  offsetY: number = 0,
   gap: number = 2
 ): PixelPosition => {
   // 计算最接近的网格位置

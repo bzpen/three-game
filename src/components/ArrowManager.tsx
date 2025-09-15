@@ -29,9 +29,7 @@ export const ArrowManagerWithRef = React.forwardRef<ArrowManagerRef, ArrowManage
       rows: 6, 
       cols: 6, 
       gridGap: 2, 
-      gridSize: 60, 
-      offsetX: 20, 
-      offsetY: 20
+      gridSize: 60
     };
 
     const [, setMovingArrows] = useState<Set<number>>(new Set());
@@ -120,7 +118,6 @@ export const ArrowManagerWithRef = React.forwardRef<ArrowManagerRef, ArrowManage
               checkCollision={checkCollision}
               gridSize={config.gridSize}
               gridGap={config.gridGap}
-              gridPadding={config.offsetX}
               gridRows={config.rows}
               gridCols={config.cols}
             />

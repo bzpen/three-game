@@ -6,8 +6,6 @@ export interface LevelConfig {
   gridGap: number;
   gridSize: number;
   arrowCount: number;
-  offsetX: number;
-  offsetY: number;
 }
 
 export interface LevelState {
@@ -22,8 +20,6 @@ const initialState: LevelState = {
     gridGap: 2,
     gridSize: 60,
     arrowCount: 3,
-    offsetX: 20,
-    offsetY: 20,
   },
   gridData: [],
 };

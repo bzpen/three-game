@@ -10,8 +10,6 @@ export interface UseArrowsConfig {
   cols: number;
   gridGap: number;
   gridSize: number;
-  offsetX: number;
-  offsetY: number;
 }
 
 export interface UseArrowsReturn {
@@ -60,8 +58,8 @@ export const useArrows = (
         cols: config.cols,
         gridSize: config.gridSize,
         gridGap: config.gridGap,
-        offsetX: config.offsetX,
-        offsetY: config.offsetY,
+        offsetX: 0,
+        offsetY: 0,
       };
 
       const newGridData = gridService.updateGridFromArrows(
@@ -117,8 +115,8 @@ export const useArrows = (
       cols: config.cols,
       gridSize: config.gridSize,
       gridGap: config.gridGap,
-      offsetX: config.offsetX,
-      offsetY: config.offsetY,
+      offsetX: 0,
+      offsetY: 0,
     };
 
     return gridService.checkArrowCollision(

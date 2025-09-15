@@ -1,20 +1,14 @@
 {
   "id": "sample_pack_v1",
   "name": "Sample Level Pack",
-  "description": "示例关卡包，包含各种难度的关卡",
   "version": "1.0.0",
   "levels": [
     {
       "id": "easy_001",
       "name": "Easy Level 1",
-      "difficulty": "easy",
       "config": {
         "rows": 4,
-        "cols": 4,
-        "gridGap": 3,
-        "gridSize": 80,
-        "offsetX": 20,
-        "offsetY": 20
+        "cols": 4
       },
       "arrows": [
         {
@@ -27,100 +21,7 @@
           "direction": "down",
           "gridPosition": { "row": 2, "col": 3 }
         }
-      ],
-      "metadata": {
-        "createdAt": "2024-01-01T00:00:00.000Z",
-        "generationAttempts": 3,
-        "isValid": true,
-        "tags": ["tutorial", "beginner"]
-      }
-    },
-    {
-      "id": "medium_001",
-      "name": "Medium Level 1",
-      "difficulty": "medium",
-      "config": {
-        "rows": 6,
-        "cols": 6,
-        "gridGap": 2,
-        "gridSize": 60,
-        "offsetX": 20,
-        "offsetY": 20
-      },
-      "arrows": [
-        {
-          "id": 1,
-          "direction": "right",
-          "gridPosition": { "row": 1, "col": 1 }
-        },
-        {
-          "id": 2,
-          "direction": "down",
-          "gridPosition": { "row": 3, "col": 2 }
-        },
-        {
-          "id": 3,
-          "direction": "left",
-          "gridPosition": { "row": 4, "col": 4 }
-        }
-      ],
-      "metadata": {
-        "createdAt": "2024-01-01T00:00:00.000Z",
-        "generationAttempts": 8,
-        "isValid": true,
-        "tags": ["standard"]
-      }
-    },
-    {
-      "id": "hard_001",
-      "name": "Hard Level 1",
-      "difficulty": "hard",
-      "config": {
-        "rows": 8,
-        "cols": 8,
-        "gridGap": 2,
-        "gridSize": 50,
-        "offsetX": 25,
-        "offsetY": 25
-      },
-      "arrows": [
-        {
-          "id": 1,
-          "direction": "right",
-          "gridPosition": { "row": 1, "col": 1 }
-        },
-        {
-          "id": 2,
-          "direction": "down",
-          "gridPosition": { "row": 2, "col": 3 }
-        },
-        {
-          "id": 3,
-          "direction": "left",
-          "gridPosition": { "row": 4, "col": 6 }
-        },
-        {
-          "id": 4,
-          "direction": "up",
-          "gridPosition": { "row": 6, "col": 2 }
-        }
-      ],
-      "metadata": {
-        "createdAt": "2024-01-01T00:00:00.000Z",
-        "generationAttempts": 15,
-        "isValid": true,
-        "tags": ["challenge"]
-      }
+      ]
     }
-  ],
-  "metadata": {
-    "createdAt": "2024-01-01T00:00:00.000Z",
-    "totalLevels": 3,
-    "difficultyDistribution": {
-      "easy": 1,
-      "medium": 1,
-      "hard": 1,
-      "expert": 0
-    }
-  }
+  ]
 }

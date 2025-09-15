@@ -21,7 +21,6 @@ interface ArrowProps {
   checkCollision: (arrowId: number, currentPixelPosition?: { x: number; y: number }) => boolean;
   gridSize: number;
   gridGap: number;
-  gridPadding: number;
   gridRows: number;
   gridCols: number;
 }
@@ -39,7 +38,6 @@ const Arrow: React.FC<ArrowProps> = ({
   checkCollision,
   gridSize,
   gridGap,
-  gridPadding,
   gridRows,
   gridCols
 }) => {
@@ -117,7 +115,7 @@ const Arrow: React.FC<ArrowProps> = ({
       // 检查是否移出区域
       const occupiedCells = getArrowOccupiedCellsByPixel(
         newX, newY, direction,
-        gridSize, gridPadding, gridPadding, gridGap, gridRows, gridCols
+        gridSize, 0, 0, gridGap, gridRows, gridCols
       );
       
       if (occupiedCells.length === 0) {

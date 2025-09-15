@@ -1,6 +1,6 @@
 // 静态关卡服务 - 只读模式，用于生产环境加载预制关卡
 
-import type { LevelData, LevelPack } from '../types/level';
+import type { LevelData, LevelPack, LevelArrowData } from '../types/level';
 import type { ArrowData } from '../types/game';
 import { gridToPixel } from '../utils/arrow';
 
@@ -29,12 +29,15 @@ export class StaticLevelService {
         throw new Error(`Failed to load level pack: ${response.statusText}`);
       }
 
-      const levelPack: LevelPack = await response.json();
+      const rawLevelPack = await response.json();
       
       // 验证关卡包数据
-      if (!this.validateLevelPack(levelPack)) {
+      if (!this.validateLevelPack(rawLevelPack)) {
         throw new Error('Invalid level pack format');
       }
+
+      // 处理关卡包数据，只保留核心游戏数据
+      const levelPack = this.processLevelPack(rawLevelPack as unknown as Record<string, unknown>);
 
       // 缓存关卡包和所有关卡
       this.levelPacks.set(levelPack.id, levelPack);
@@ -83,26 +86,11 @@ export class StaticLevelService {
    */
   getAllLevels(): LevelData[] {
     return Array.from(this.levels.values()).sort((a, b) => {
-      // 按难度和名称排序
-      const difficultyOrder = { easy: 0, medium: 1, hard: 2, expert: 3 };
-      const aDiff = difficultyOrder[a.difficulty];
-      const bDiff = difficultyOrder[b.difficulty];
-      
-      if (aDiff !== bDiff) {
-        return aDiff - bDiff;
-      }
+      // 按名称排序
       return a.name.localeCompare(b.name);
     });
   }
 
-  /**
-   * 按难度获取关卡
-   */
-  getLevelsByDifficulty(difficulty: 'easy' | 'medium' | 'hard' | 'expert'): LevelData[] {
-    return Array.from(this.levels.values())
-      .filter(level => level.difficulty === difficulty)
-      .sort((a, b) => a.name.localeCompare(b.name));
-  }
 
   /**
    * 获取关卡包
@@ -121,14 +109,14 @@ export class StaticLevelService {
   /**
    * 将关卡箭头数据转换为运行时数据
    */
-  convertLevelArrowsToRuntime(level: LevelData): ArrowData[] {
+  convertLevelArrowsToRuntime(level: LevelData, gridSize: number = 60, gridGap: number = 2): ArrowData[] {
     return level.arrows.map(levelArrow => {
       const pixelPosition = gridToPixel(
         levelArrow.gridPosition,
-        level.config.gridSize,
-        level.config.offsetX,
-        level.config.offsetY,
-        level.config.gridGap
+        gridSize,
+        0,
+        0,
+        gridGap
       );
 
       return {
@@ -146,19 +134,12 @@ export class StaticLevelService {
   getStatistics(): {
     totalLevels: number;
     totalPacks: number;
-    difficultyDistribution: { easy: number; medium: number; hard: number; expert: number };
   } {
     const levels = this.getAllLevels();
     
     return {
       totalLevels: levels.length,
       totalPacks: this.levelPacks.size,
-      difficultyDistribution: {
-        easy: levels.filter(l => l.difficulty === 'easy').length,
-        medium: levels.filter(l => l.difficulty === 'medium').length,
-        hard: levels.filter(l => l.difficulty === 'hard').length,
-        expert: levels.filter(l => l.difficulty === 'expert').length,
-      },
     };
   }
 
@@ -170,7 +151,33 @@ export class StaticLevelService {
   }
 
   /**
-   * 验证关卡包格式
+   * 处理关卡包数据，只保留核心游戏数据
+   */
+  private processLevelPack(rawLevelPack: Record<string, unknown>): LevelPack {
+    const processedLevels = (rawLevelPack.levels as Record<string, unknown>[]).map((rawLevel: Record<string, unknown>) => {
+      const config = rawLevel.config as Record<string, unknown>;
+      return {
+        id: rawLevel.id as string,
+        name: rawLevel.name as string,
+        config: {
+          rows: config.rows as number,
+          cols: config.cols as number,
+        },
+        arrows: rawLevel.arrows as LevelArrowData[]
+      };
+    });
+
+    return {
+      id: rawLevelPack.id as string,
+      name: rawLevelPack.name as string,
+      version: (rawLevelPack.version as string) || '1.0.0',
+      levels: processedLevels
+    };
+  }
+
+
+  /**
+   * 验证关卡包格式 - 适配简化格式
    */
   private validateLevelPack(levelPack: unknown): levelPack is LevelPack {
     if (!levelPack || typeof levelPack !== 'object') return false;
@@ -185,7 +192,7 @@ export class StaticLevelService {
   }
 
   /**
-   * 验证关卡格式
+   * 验证关卡格式 - 适配简化格式，不再验证metadata和difficulty
    */
   private validateLevel(level: unknown): level is LevelData {
     if (!level || typeof level !== 'object') return false;
@@ -194,7 +201,6 @@ export class StaticLevelService {
     return (
       typeof obj.id === 'string' &&
       typeof obj.name === 'string' &&
-      ['easy', 'medium', 'hard', 'expert'].includes(obj.difficulty as string) &&
       obj.config !== null &&
       typeof obj.config === 'object' &&
       this.validateConfig(obj.config) &&
@@ -204,7 +210,7 @@ export class StaticLevelService {
   }
 
   /**
-   * 验证配置格式
+   * 验证配置格式 - 适配简化格式，只需要rows和cols
    */
   private validateConfig(config: unknown): boolean {
     if (!config || typeof config !== 'object') return false;
@@ -212,11 +218,7 @@ export class StaticLevelService {
     const obj = config as Record<string, unknown>;
     return (
       typeof obj.rows === 'number' &&
-      typeof obj.cols === 'number' &&
-      typeof obj.gridGap === 'number' &&
-      typeof obj.gridSize === 'number' &&
-      typeof obj.offsetX === 'number' &&
-      typeof obj.offsetY === 'number'
+      typeof obj.cols === 'number'
     );
   }
 

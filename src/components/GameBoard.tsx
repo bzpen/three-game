@@ -1,11 +1,11 @@
 'use client';
 
 import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
 import { useAppDispatch, useAppSelector } from '../lib/hooks/redux';
 import type { RootState } from '../lib/store';
 import { updateConfig, resetGrid } from '../lib/store/levelSlice';
 import { ArrowManagerWithRef, type ArrowManagerRef } from './ArrowManager';
-import { ArrowController, type ArrowControllerConfig } from '../lib/controllers/ArrowController';
 import { StaticLevelService } from '../lib/services/StaticLevelService';
 import type { ArrowData } from '../lib/types/game';
 import type { LevelData } from '../lib/types/level';
@@ -28,13 +28,14 @@ const GameBoard: React.FC<GameBoardProps> = ({
   arrowCount = 3,
   showGridData: initialShowGridData = false
 }) => {
+  const router = useRouter();
   const dispatch = useAppDispatch();
   const stateConfig = useAppSelector((state: RootState) => state.level.config);
   const stateGridData = useAppSelector((state: RootState) => state.level.gridData);
   
   const config = useMemo(() => {
     return stateConfig || {
-      rows, cols, gridGap, gridSize, arrowCount, offsetX: 20, offsetY: 20
+      rows, cols, gridGap, gridSize, arrowCount
     };
   }, [stateConfig, rows, cols, gridGap, gridSize, arrowCount]);
   
@@ -45,26 +46,36 @@ const GameBoard: React.FC<GameBoardProps> = ({
   const [currentArrows, setCurrentArrows] = useState<ArrowData[]>([]);
   const [currentLevel, setCurrentLevel] = useState<LevelData | null>(null);
   const [availableLevels, setAvailableLevels] = useState<LevelData[]>([]);
-  const [isRandomMode, setIsRandomMode] = useState(false);
   
   const arrowManagerRef = useRef<ArrowManagerRef>(null);
-  const arrowController = useRef(ArrowController.getInstance());
   const staticLevelService = useRef(StaticLevelService.getInstance());
+
+  // 导航到错误页面的辅助函数
+  const navigateToError = useCallback((title: string, message: string, showRetry: boolean = true) => {
+    const params = new URLSearchParams({
+      title,
+      message,
+      showRetry: showRetry.toString()
+    });
+    router.push(`/error?${params.toString()}`);
+  }, [router]);
 
   // 加载关卡
   const loadLevel = useCallback(async (level: LevelData) => {
     setIsLoading(true);
     
     try {
-      // 转换关卡箭头数据为运行时数据
-      const arrows = staticLevelService.current.convertLevelArrowsToRuntime(level);
+      // 转换关卡箭头数据为运行时数据，传入UI配置
+      const arrows = staticLevelService.current.convertLevelArrowsToRuntime(level, config.gridSize, config.gridGap);
       
       setCurrentLevel(level);
       setCurrentArrows(arrows);
-      setIsRandomMode(false);
       
-      // 更新配置以匹配关卡
-      dispatch(updateConfig(level.config));
+      // 更新配置，合并关卡配置和UI配置
+      dispatch(updateConfig({
+        ...config, // 保留当前的UI配置(gridSize, gridGap, arrowCount)
+        ...level.config // 覆盖关卡特定配置(rows, cols)
+      }));
       
       // 通过ref设置箭头到ArrowManager
       if (arrowManagerRef.current) {
@@ -74,53 +85,13 @@ const GameBoard: React.FC<GameBoardProps> = ({
       console.log(`✓ 关卡加载成功: ${level.name}`);
     } catch (error) {
       console.error('加载关卡时发生错误:', error);
+      const errorMsg = `关卡"${level.name}"加载失败: ${error instanceof Error ? error.message : '未知错误'}`;
+      navigateToError('关卡加载失败', errorMsg);
     } finally {
       setIsLoading(false);
     }
-  }, [dispatch]);
+  }, [dispatch, navigateToError, config]);
 
-  // 生成随机箭头（稳定版本，不依赖变化的config）
-  const generateRandomArrows = useCallback(async () => {
-    setIsLoading(true);
-    
-    try {
-      // 使用当前的稳定配置，避免依赖频繁变化的config
-      const currentConfig = stateConfig || {
-        rows, cols, gridGap, gridSize, arrowCount, offsetX: 20, offsetY: 20
-      };
-      
-      const arrowConfig: ArrowControllerConfig = {
-        rows: currentConfig.rows,
-        cols: currentConfig.cols,
-        gridGap: currentConfig.gridGap,
-        gridSize: currentConfig.gridSize,
-        arrowCount: currentConfig.arrowCount,
-        offsetX: currentConfig.offsetX,
-        offsetY: currentConfig.offsetY,
-      };
-
-      const result = await arrowController.current.generateArrows(arrowConfig);
-      
-      if (result.success) {
-        setCurrentArrows(result.arrows);
-        setCurrentLevel(null);
-        setIsRandomMode(true);
-        
-        // 通过ref设置箭头到ArrowManager
-        if (arrowManagerRef.current) {
-          arrowManagerRef.current.setArrows(result.arrows);
-        }
-      } else {
-        console.warn('随机箭头生成失败');
-        setCurrentArrows([]);
-      }
-    } catch (error) {
-      console.error('生成随机箭头时发生错误:', error);
-      setCurrentArrows([]);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [stateConfig, rows, cols, gridGap, gridSize, arrowCount]); // 使用稳定的依赖
 
   // 加载静态关卡数据
   useEffect(() => {
@@ -130,6 +101,7 @@ const GameBoard: React.FC<GameBoardProps> = ({
       if (!isMounted) return;
       
       setIsLoading(true);
+      
       try {
         await staticLevelService.current.loadDefaultLevels();
         if (!isMounted) return;
@@ -143,13 +115,20 @@ const GameBoard: React.FC<GameBoardProps> = ({
           
           // 直接处理关卡加载，避免useCallback依赖
           try {
-            const arrows = staticLevelService.current.convertLevelArrowsToRuntime(firstLevel);
+            // 使用当前的UI配置转换关卡数据
+            const currentConfig = stateConfig || {
+              rows, cols, gridGap, gridSize, arrowCount
+            };
+            const arrows = staticLevelService.current.convertLevelArrowsToRuntime(firstLevel, currentConfig.gridSize, currentConfig.gridGap);
             
             if (isMounted) {
               setCurrentLevel(firstLevel);
               setCurrentArrows(arrows);
-              setIsRandomMode(false);
-              dispatch(updateConfig(firstLevel.config));
+              // 合并关卡配置和UI配置
+              dispatch(updateConfig({
+                ...currentConfig, // 保留当前的UI配置(gridSize, gridGap, arrowCount)
+                ...firstLevel.config // 覆盖关卡特定配置(rows, cols)
+              }));
               
               // 通过ref设置箭头到ArrowManager
               if (arrowManagerRef.current) {
@@ -161,68 +140,23 @@ const GameBoard: React.FC<GameBoardProps> = ({
           } catch (levelError) {
             console.error('加载首个关卡失败:', levelError);
             if (isMounted) {
-              setIsRandomMode(true);
-              // 生成随机箭头的逻辑
-              generateRandomArrowsInternal();
+              const errorMsg = `首个关卡加载失败: ${levelError instanceof Error ? levelError.message : '未知错误'}`;
+              navigateToError('游戏初始化失败', errorMsg);
             }
           }
         } else if (isMounted) {
-          // 如果没有关卡，切换到随机模式
-          setIsRandomMode(true);
-          generateRandomArrowsInternal();
+          // 如果没有关卡，跳转到错误页面
+          navigateToError('没有可用关卡', '没有找到可用的关卡数据，请检查关卡文件是否存在。', false);
         }
       } catch (error) {
         console.error('加载关卡失败:', error);
         if (isMounted) {
-          // 失败时切换到随机模式
-          setIsRandomMode(true);
-          generateRandomArrowsInternal();
+          const errorMsg = `关卡系统加载失败: ${error instanceof Error ? error.message : '未知错误'}`;
+          navigateToError('系统加载失败', errorMsg);
         }
       } finally {
         if (isMounted) {
           setIsLoading(false);
-        }
-      }
-    };
-
-    // 内部随机箭头生成函数，避免外部依赖
-    const generateRandomArrowsInternal = async () => {
-      if (!isMounted) return;
-      
-      try {
-        const currentConfig = stateConfig || {
-          rows, cols, gridGap, gridSize, arrowCount, offsetX: 20, offsetY: 20
-        };
-        
-        const arrowConfig: ArrowControllerConfig = {
-          rows: currentConfig.rows,
-          cols: currentConfig.cols,
-          gridGap: currentConfig.gridGap,
-          gridSize: currentConfig.gridSize,
-          arrowCount: currentConfig.arrowCount,
-          offsetX: currentConfig.offsetX,
-          offsetY: currentConfig.offsetY,
-        };
-
-        const result = await arrowController.current.generateArrows(arrowConfig);
-        
-        if (isMounted && result.success) {
-          setCurrentArrows(result.arrows);
-          setCurrentLevel(null);
-          setIsRandomMode(true);
-          
-          // 通过ref设置箭头到ArrowManager
-          if (arrowManagerRef.current) {
-            arrowManagerRef.current.setArrows(result.arrows);
-          }
-        } else if (isMounted) {
-          console.warn('随机箭头生成失败');
-          setCurrentArrows([]);
-        }
-      } catch (error) {
-        console.error('生成随机箭头时发生错误:', error);
-        if (isMounted) {
-          setCurrentArrows([]);
         }
       }
     };
@@ -246,8 +180,6 @@ const GameBoard: React.FC<GameBoardProps> = ({
         gridGap,
         gridSize,
         arrowCount,
-        offsetX: 20,
-        offsetY: 20,
       }));
     }
   }, [dispatch, stateConfig, rows, cols, gridGap, gridSize, arrowCount]);
@@ -261,25 +193,19 @@ const GameBoard: React.FC<GameBoardProps> = ({
       arrowManagerRef.current.clearArrows();
     }
     
-    if (isRandomMode) {
-      generateRandomArrows();
-    } else if (currentLevel) {
+    if (currentLevel) {
       loadLevel(currentLevel);
     }
-  }, [dispatch, isRandomMode, currentLevel, generateRandomArrows, loadLevel]);
+  }, [dispatch, currentLevel, loadLevel]);
 
-  // 切换到随机模式
-  const switchToRandomMode = useCallback(() => {
-    setCurrentLevel(null);
-    generateRandomArrows();
-  }, [generateRandomArrows]);
 
   // 处理网格更新回调
   const handleGridUpdate = useCallback(() => {
     // ArrowManager已经通过dispatch更新了Redux
   }, []);
 
-  const boardSize = config.gridSize * config.cols + 40 + 2 * (config.cols - 1);
+
+  const boardSize = config.gridSize * config.cols + config.gridGap * (config.cols - 1);
 
   return (
     <div className="h-screen w-screen overflow-hidden bg-gray-100 flex items-center justify-center">
@@ -303,27 +229,12 @@ const GameBoard: React.FC<GameBoardProps> = ({
                 <option value="">选择关卡...</option>
                 {availableLevels.map(level => (
                   <option key={level.id} value={level.id}>
-                    {level.name} ({level.difficulty})
+                    {level.name}
                   </option>
                 ))}
               </select>
-              
-              <div className="h-6 border-l border-gray-300"></div>
             </>
           )}
-          
-          {/* 随机模式切换 */}
-          <button 
-            onClick={switchToRandomMode}
-            disabled={isLoading}
-            className={`px-4 py-2 rounded text-white ${
-              isRandomMode 
-                ? 'bg-purple-600' 
-                : 'bg-purple-500 hover:bg-purple-600'
-            } disabled:bg-gray-400`}
-          >
-            随机模式
-          </button>
           
           {/* 重新加载 */}
           <button 
@@ -368,9 +279,8 @@ const GameBoard: React.FC<GameBoardProps> = ({
         
         {/* 状态显示 */}
         <div className="text-sm text-gray-600">
-          <p>模式: {isRandomMode ? '随机模式' : '关卡模式'}</p>
           {currentLevel && (
-            <p>当前关卡: {currentLevel.name} ({currentLevel.difficulty})</p>
+            <p>当前关卡: {currentLevel.name}</p>
           )}
           <p>关卡尺寸: {config.rows}x{config.cols}</p>
           <p>当前箭头数量: {currentArrows.length}</p>

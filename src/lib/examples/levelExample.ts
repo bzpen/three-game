@@ -209,8 +209,6 @@ export const levelDataStructure = {
       cols: 6,
       gridGap: 2,
       gridSize: 60,
-      offsetX: 20,
-      offsetY: 20,
     },
     arrows: [
       {
