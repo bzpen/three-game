@@ -1,7 +1,7 @@
 // ArrowManager使用示例
 
 import { store } from '../store';
-import { updateConfig, resetGrid } from '../store/levelSlice';
+import { updateConfig, resetGrid, type LevelState } from '../store/levelSlice';
 
 // 示例1: 更新游戏配置
 export const updateGameConfig = (config: {
@@ -10,8 +10,6 @@ export const updateGameConfig = (config: {
   gridGap?: number;
   gridSize?: number;
   arrowCount?: number;
-  offsetX?: number;
-  offsetY?: number;
 }) => {
   store.dispatch(updateConfig(config));
 };
@@ -24,8 +22,6 @@ export const setSmallGame = () => {
     gridGap: 2,
     gridSize: 80,
     arrowCount: 2,
-    offsetX: 15,
-    offsetY: 15,
   }));
 };
 
@@ -37,8 +33,6 @@ export const setLargeGame = () => {
     gridGap: 3,
     gridSize: 50,
     arrowCount: 5,
-    offsetX: 25,
-    offsetY: 25,
   }));
 };
 
@@ -57,7 +51,7 @@ export const getCurrentGameState = () => {
 };
 
 // 示例6: 监听状态变化
-export const subscribeToGameState = (callback: (state: any) => void) => {
+export const subscribeToGameState = (callback: (state: LevelState) => void) => {
   return store.subscribe(() => {
     const state = store.getState();
     callback(state.level);

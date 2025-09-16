@@ -8,11 +8,6 @@ import { updateGridData } from '../lib/store/levelSlice';
 import { useArrows, type UseArrowsConfig } from '../lib/hooks/useArrows';
 import Arrow from './Arrow';
 
-interface ArrowManagerProps {
-  arrows?: ArrowData[];
-  onGridUpdate?: (gridData: number[][]) => void;
-}
-
 // 为了支持外部设置箭头，我们创建一个带ref的版本
 export interface ArrowManagerRef {
   setArrows: (arrows: ArrowData[]) => void;
@@ -20,27 +15,19 @@ export interface ArrowManagerRef {
   getArrows: () => ArrowData[];
 }
 
-export const ArrowManagerWithRef = React.forwardRef<ArrowManagerRef, ArrowManagerProps>(
-  (props, ref) => {
+export const ArrowManagerWithRef = React.forwardRef<ArrowManagerRef, object>(
+  (_, ref) => {
     const dispatch = useAppDispatch();
     const stateConfig = useAppSelector((state: RootState) => state.level.config);
     
-    const config: UseArrowsConfig = stateConfig || {
-      rows: 6, 
-      cols: 6, 
-      gridGap: 2, 
-      gridSize: 60
-    };
+    const config: UseArrowsConfig = stateConfig ;
 
     const [, setMovingArrows] = useState<Set<number>>(new Set());
 
-    const { onGridUpdate } = props;
     const handleGridUpdate = useCallback((newGridData: number[][]) => {
       dispatch(updateGridData(newGridData));
-      if (onGridUpdate) {
-        onGridUpdate(newGridData);
-      }
-    }, [dispatch, onGridUpdate]);
+    
+    }, [dispatch]);
 
     const {
       arrows,
@@ -51,13 +38,6 @@ export const ArrowManagerWithRef = React.forwardRef<ArrowManagerRef, ArrowManage
       checkCollision,
       clearArrows,
     } = useArrows(config, handleGridUpdate);
-
-    // 初始化时设置传入的箭头数据
-    React.useEffect(() => {
-      if (props.arrows && props.arrows.length > 0) {
-        setArrows(props.arrows);
-      }
-    }, [props.arrows, setArrows]);
 
     // 暴露给父组件的方法
     React.useImperativeHandle(ref, () => ({

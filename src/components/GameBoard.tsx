@@ -1,13 +1,12 @@
 'use client';
 
-import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAppDispatch, useAppSelector } from '../lib/hooks/redux';
 import type { RootState } from '../lib/store';
 import { updateConfig, resetGrid } from '../lib/store/levelSlice';
 import { ArrowManagerWithRef, type ArrowManagerRef } from './ArrowManager';
-import { StaticLevelService } from '../lib/services/StaticLevelService';
-import type { ArrowData } from '../lib/types/game';
+import { useGame } from '../lib/hooks/useGame';
 import type { LevelData } from '../lib/types/level';
 import Grid from './Grid';
 
@@ -21,34 +20,27 @@ interface GameBoardProps {
 }
 
 const GameBoard: React.FC<GameBoardProps> = ({
-  rows = 6,
-  cols = 6,
-  gridGap = 2,
-  gridSize = 60,
-  arrowCount = 3,
-  showGridData: initialShowGridData = false
 }) => {
   const router = useRouter();
   const dispatch = useAppDispatch();
-  const stateConfig = useAppSelector((state: RootState) => state.level.config);
+  const config = useAppSelector((state: RootState) => state.level.config);
   const stateGridData = useAppSelector((state: RootState) => state.level.gridData);
   
-  const config = useMemo(() => {
-    return stateConfig || {
-      rows, cols, gridGap, gridSize, arrowCount
-    };
-  }, [stateConfig, rows, cols, gridGap, gridSize, arrowCount]);
+  // 使用新的游戏状态管理hook
+  const {
+    availableLevels,
+    currentLevel,
+    currentArrows,
+    isLoading,
+    loadingError,
+    loadDefaultLevels,
+    loadLevel: loadLevelAction,
+    loadFirstAvailableLevel,
+  } = useGame();
   
   const gridData = stateGridData || [];
-
-  const [showGridData, setShowGridData] = useState(initialShowGridData);
-  const [isLoading, setIsLoading] = useState(false);
-  const [currentArrows, setCurrentArrows] = useState<ArrowData[]>([]);
-  const [currentLevel, setCurrentLevel] = useState<LevelData | null>(null);
-  const [availableLevels, setAvailableLevels] = useState<LevelData[]>([]);
-  
+  const [showGridData, setShowGridData] = useState(false);
   const arrowManagerRef = useRef<ArrowManagerRef>(null);
-  const staticLevelService = useRef(StaticLevelService.getInstance());
 
   // 导航到错误页面的辅助函数
   const navigateToError = useCallback((title: string, message: string, showRetry: boolean = true) => {
@@ -62,14 +54,9 @@ const GameBoard: React.FC<GameBoardProps> = ({
 
   // 加载关卡
   const loadLevel = useCallback(async (level: LevelData) => {
-    setIsLoading(true);
-    
     try {
-      // 转换关卡箭头数据为运行时数据，传入UI配置
-      const arrows = staticLevelService.current.convertLevelArrowsToRuntime(level, config.gridSize, config.gridGap);
-      
-      setCurrentLevel(level);
-      setCurrentArrows(arrows);
+      // 使用Redux action加载关卡
+      await loadLevelAction(level.id, config.gridSize, config.gridGap);
       
       // 更新配置，合并关卡配置和UI配置
       dispatch(updateConfig({
@@ -77,112 +64,86 @@ const GameBoard: React.FC<GameBoardProps> = ({
         ...level.config // 覆盖关卡特定配置(rows, cols)
       }));
       
-      // 通过ref设置箭头到ArrowManager
-      if (arrowManagerRef.current) {
-        arrowManagerRef.current.setArrows(arrows);
-      }
-      
       console.log(`✓ 关卡加载成功: ${level.name}`);
     } catch (error) {
       console.error('加载关卡时发生错误:', error);
       const errorMsg = `关卡"${level.name}"加载失败: ${error instanceof Error ? error.message : '未知错误'}`;
       navigateToError('关卡加载失败', errorMsg);
-    } finally {
-      setIsLoading(false);
     }
-  }, [dispatch, navigateToError, config]);
+  }, [dispatch, navigateToError, config, loadLevelAction]);
 
 
   // 加载静态关卡数据
   useEffect(() => {
-    let isMounted = true; // 防止组件卸载后的状态更新
+    let isMounted = true;
     
-    const loadLevels = async () => {
+    const initializeGame = async () => {
       if (!isMounted) return;
       
-      setIsLoading(true);
-      
       try {
-        await staticLevelService.current.loadDefaultLevels();
+        // 使用Redux action加载默认关卡
+        await loadDefaultLevels();
+        
         if (!isMounted) return;
         
-        const levels = staticLevelService.current.getAllLevels();
-        setAvailableLevels(levels);
-        
-        // 如果有关卡，默认加载第一个
-        if (levels.length > 0 && isMounted) {
-          const firstLevel = levels[0];
-          
-          // 直接处理关卡加载，避免useCallback依赖
-          try {
-            // 使用当前的UI配置转换关卡数据
-            const currentConfig = stateConfig || {
-              rows, cols, gridGap, gridSize, arrowCount
-            };
-            const arrows = staticLevelService.current.convertLevelArrowsToRuntime(firstLevel, currentConfig.gridSize, currentConfig.gridGap);
+        // 检查是否有关卡可用，如果有则加载第一个
+        if (availableLevels.length === 0) {
+          // 等待下一次渲染以获取最新的availableLevels
+          setTimeout(async () => {
+            if (!isMounted) return;
             
-            if (isMounted) {
-              setCurrentLevel(firstLevel);
-              setCurrentArrows(arrows);
-              // 合并关卡配置和UI配置
-              dispatch(updateConfig({
-                ...currentConfig, // 保留当前的UI配置(gridSize, gridGap, arrowCount)
-                ...firstLevel.config // 覆盖关卡特定配置(rows, cols)
-              }));
+            try {
+              // 使用Redux action加载第一个可用关卡
+              await loadFirstAvailableLevel(config.gridSize, config.gridGap);
               
-              // 通过ref设置箭头到ArrowManager
-              if (arrowManagerRef.current) {
-                arrowManagerRef.current.setArrows(arrows);
+              if (currentLevel && isMounted) {
+                // 更新配置，合并关卡配置和UI配置
+                dispatch(updateConfig({
+                  ...config,
+                  ...currentLevel.config
+                }));
+                
+                console.log(`✓ 首个关卡加载成功: ${currentLevel.name}`);
               }
-              
-              console.log(`✓ 关卡加载成功: ${firstLevel.name}`);
+            } catch (error) {
+              if (isMounted) {
+                const errorMsg = `首个关卡加载失败: ${error instanceof Error ? error.message : '未知错误'}`;
+                navigateToError('游戏初始化失败', errorMsg);
+              }
             }
-          } catch (levelError) {
-            console.error('加载首个关卡失败:', levelError);
-            if (isMounted) {
-              const errorMsg = `首个关卡加载失败: ${levelError instanceof Error ? levelError.message : '未知错误'}`;
-              navigateToError('游戏初始化失败', errorMsg);
-            }
-          }
-        } else if (isMounted) {
-          // 如果没有关卡，跳转到错误页面
-          navigateToError('没有可用关卡', '没有找到可用的关卡数据，请检查关卡文件是否存在。', false);
+          }, 100);
         }
+        
       } catch (error) {
         console.error('加载关卡失败:', error);
         if (isMounted) {
           const errorMsg = `关卡系统加载失败: ${error instanceof Error ? error.message : '未知错误'}`;
           navigateToError('系统加载失败', errorMsg);
         }
-      } finally {
-        if (isMounted) {
-          setIsLoading(false);
-        }
       }
     };
 
-    loadLevels();
+    initializeGame();
     
-    // 清理函数
     return () => {
       isMounted = false;
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // 故意只在挂载时执行一次，避免循环依赖导致的死锁
+  }, []); // 故意只在挂载时执行一次
 
-  // 初始化配置 - 只在组件挂载时设置一次，避免频繁更新
+  // 同步箭头数据到ArrowManager
   useEffect(() => {
-    // 只有当Redux中没有配置时才初始化
-    if (!stateConfig) {
-      dispatch(updateConfig({
-        rows,
-        cols,
-        gridGap,
-        gridSize,
-        arrowCount,
-      }));
+    if (arrowManagerRef.current && currentArrows.length > 0) {
+      arrowManagerRef.current.setArrows(currentArrows);
     }
-  }, [dispatch, stateConfig, rows, cols, gridGap, gridSize, arrowCount]);
+  }, [currentArrows]);
+
+  // 处理加载错误
+  useEffect(() => {
+    if (loadingError) {
+      navigateToError('加载失败', loadingError);
+    }
+  }, [loadingError, navigateToError]);
 
   // 重新加载当前内容
   const handleReload = useCallback(() => {
@@ -197,12 +158,6 @@ const GameBoard: React.FC<GameBoardProps> = ({
       loadLevel(currentLevel);
     }
   }, [dispatch, currentLevel, loadLevel]);
-
-
-  // 处理网格更新回调
-  const handleGridUpdate = useCallback(() => {
-    // ArrowManager已经通过dispatch更新了Redux
-  }, []);
 
 
   const boardSize = config.gridSize * config.cols + config.gridGap * (config.cols - 1);
@@ -272,8 +227,6 @@ const GameBoard: React.FC<GameBoardProps> = ({
           {/* 箭头管理器 */}
           <ArrowManagerWithRef
             ref={arrowManagerRef}
-            arrows={currentArrows}
-            onGridUpdate={handleGridUpdate}
           />
         </div>
         
