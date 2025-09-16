@@ -91,28 +91,17 @@ export const generateMultipleLevels = async () => {
 };
 
 // 示例4: 按难度筛选关卡
-export const getLevelsByDifficulty = async () => {
+export const getAllAvailableLevels = async () => {
   const staticLevelService = StaticLevelService.getInstance();
   
   // 确保数据已加载
   await staticLevelService.loadDefaultLevels();
   
-  const easyLevels = staticLevelService.getLevelsByDifficulty('easy');
-  const mediumLevels = staticLevelService.getLevelsByDifficulty('medium');
-  const hardLevels = staticLevelService.getLevelsByDifficulty('hard');
-  const expertLevels = staticLevelService.getLevelsByDifficulty('expert');
+  const allLevels = staticLevelService.getAllLevels();
   
-  console.log('简单关卡:', easyLevels.length, '个');
-  console.log('中等关卡:', mediumLevels.length, '个');
-  console.log('困难关卡:', hardLevels.length, '个');
-  console.log('专家关卡:', expertLevels.length, '个');
+  console.log('可用关卡:', allLevels.length, '个');
   
-  return {
-    easy: easyLevels,
-    medium: mediumLevels,
-    hard: hardLevels,
-    expert: expertLevels,
-  };
+  return allLevels;
 };
 
 // 示例5: 获取关卡统计信息

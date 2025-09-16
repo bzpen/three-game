@@ -33,9 +33,8 @@ const GameBoard: React.FC<GameBoardProps> = ({
     currentArrows,
     isLoading,
     loadingError,
-    loadDefaultLevels,
+    initializeGame,
     loadLevel: loadLevelAction,
-    loadFirstAvailableLevel,
   } = useGame();
   
   const gridData = stateGridData || [];
@@ -55,81 +54,22 @@ const GameBoard: React.FC<GameBoardProps> = ({
   // 加载关卡
   const loadLevel = useCallback(async (level: LevelData) => {
     try {
-      // 使用Redux action加载关卡
+      // 使用Redux action加载关卡，配置会自动通过useEffect更新
       await loadLevelAction(level.id, config.gridSize, config.gridGap);
-      
-      // 更新配置，合并关卡配置和UI配置
-      dispatch(updateConfig({
-        ...config, // 保留当前的UI配置(gridSize, gridGap, arrowCount)
-        ...level.config // 覆盖关卡特定配置(rows, cols)
-      }));
-      
       console.log(`✓ 关卡加载成功: ${level.name}`);
     } catch (error) {
       console.error('加载关卡时发生错误:', error);
       const errorMsg = `关卡"${level.name}"加载失败: ${error instanceof Error ? error.message : '未知错误'}`;
       navigateToError('关卡加载失败', errorMsg);
     }
-  }, [dispatch, navigateToError, config, loadLevelAction]);
+  }, [navigateToError, config, loadLevelAction]);
 
 
-  // 加载静态关卡数据
+  // 初始化游戏 - 简单直接的流程
   useEffect(() => {
-    let isMounted = true;
-    
-    const initializeGame = async () => {
-      if (!isMounted) return;
-      
-      try {
-        // 使用Redux action加载默认关卡
-        await loadDefaultLevels();
-        
-        if (!isMounted) return;
-        
-        // 检查是否有关卡可用，如果有则加载第一个
-        if (availableLevels.length === 0) {
-          // 等待下一次渲染以获取最新的availableLevels
-          setTimeout(async () => {
-            if (!isMounted) return;
-            
-            try {
-              // 使用Redux action加载第一个可用关卡
-              await loadFirstAvailableLevel(config.gridSize, config.gridGap);
-              
-              if (currentLevel && isMounted) {
-                // 更新配置，合并关卡配置和UI配置
-                dispatch(updateConfig({
-                  ...config,
-                  ...currentLevel.config
-                }));
-                
-                console.log(`✓ 首个关卡加载成功: ${currentLevel.name}`);
-              }
-            } catch (error) {
-              if (isMounted) {
-                const errorMsg = `首个关卡加载失败: ${error instanceof Error ? error.message : '未知错误'}`;
-                navigateToError('游戏初始化失败', errorMsg);
-              }
-            }
-          }, 100);
-        }
-        
-      } catch (error) {
-        console.error('加载关卡失败:', error);
-        if (isMounted) {
-          const errorMsg = `关卡系统加载失败: ${error instanceof Error ? error.message : '未知错误'}`;
-          navigateToError('系统加载失败', errorMsg);
-        }
-      }
-    };
-
-    initializeGame();
-    
-    return () => {
-      isMounted = false;
-    };
+    initializeGame(config.gridSize, config.gridGap);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // 故意只在挂载时执行一次
+  }, []); // 只在挂载时执行一次
 
   // 同步箭头数据到ArrowManager
   useEffect(() => {
@@ -144,6 +84,16 @@ const GameBoard: React.FC<GameBoardProps> = ({
       navigateToError('加载失败', loadingError);
     }
   }, [loadingError, navigateToError]);
+
+  // 当关卡加载成功时，更新配置
+  useEffect(() => {
+    if (currentLevel) {
+      dispatch(updateConfig({
+        ...config,
+        ...currentLevel.config
+      }));
+    }
+  }, [currentLevel, dispatch, config]);
 
   // 重新加载当前内容
   const handleReload = useCallback(() => {

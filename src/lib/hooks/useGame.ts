@@ -6,6 +6,7 @@ import {
   loadLevel,
   loadFirstAvailableLevel,
   reloadLevels,
+  initializeGame,
   setCurrentArrows,
   updateArrow,
   addArrow,
@@ -38,6 +39,10 @@ export const useGame = () => {
     return dispatch(reloadLevels());
   }, [dispatch]);
   
+  const initializeGameAction = useCallback((gridSize = 60, gridGap = 2) => {
+    return dispatch(initializeGame({ gridSize, gridGap }));
+  }, [dispatch]);
+  
   // 同步actions
   const setArrows = useCallback((arrows: Parameters<typeof setCurrentArrows>[0]) => {
     dispatch(setCurrentArrows(arrows));
@@ -68,6 +73,7 @@ export const useGame = () => {
     ...gameState,
     
     // Actions
+    initializeGame: initializeGameAction,
     loadDefaultLevels: loadDefaultLevelsAction,
     loadLevel: loadLevelAction,
     loadFirstAvailableLevel: loadFirstAvailableLevelAction,

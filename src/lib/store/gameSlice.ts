@@ -130,6 +130,44 @@ export const reloadLevels = createAsyncThunk(
   }
 );
 
+// 游戏初始化 - 一站式处理所有初始化逻辑
+export const initializeGame = createAsyncThunk(
+  'game/initializeGame',
+  async (
+    { gridSize = 60, gridGap = 2 }: { gridSize?: number; gridGap?: number } = {},
+    { rejectWithValue }
+  ) => {
+    try {
+      const service = StaticLevelService.getInstance();
+      
+      // 1. 加载关卡数据
+      await service.loadDefaultLevels();
+      const levels = service.getAllLevels();
+      const levelPacks = service.getAllLevelPacks();
+      
+      if (levels.length === 0) {
+        return rejectWithValue('没有可用的关卡');
+      }
+      
+      // 2. 选择第一个关卡
+      const firstLevel = levels[0];
+      
+      // 3. 转换箭头数据
+      const arrows = service.convertLevelArrowsToRuntime(firstLevel, gridSize, gridGap);
+      
+      return {
+        levels,
+        levelPacks,
+        currentLevel: firstLevel,
+        currentArrows: arrows,
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '未知错误';
+      return rejectWithValue(`游戏初始化失败: ${message}`);
+    }
+  }
+);
+
 const gameSlice = createSlice({
   name: 'game',
   initialState,
@@ -235,6 +273,25 @@ const gameSlice = createSlice({
         state.loadingError = null;
       })
       .addCase(reloadLevels.rejected, (state, action) => {
+        state.isLoading = false;
+        state.loadingError = action.payload as string;
+      });
+    
+    // 游戏初始化
+    builder
+      .addCase(initializeGame.pending, (state) => {
+        state.isLoading = true;
+        state.loadingError = null;
+      })
+      .addCase(initializeGame.fulfilled, (state, action) => {
+        state.isLoading = false;
+        state.availableLevels = action.payload.levels;
+        state.levelPacks = action.payload.levelPacks;
+        state.currentLevel = action.payload.currentLevel;
+        state.currentArrows = action.payload.currentArrows;
+        state.loadingError = null;
+      })
+      .addCase(initializeGame.rejected, (state, action) => {
         state.isLoading = false;
         state.loadingError = action.payload as string;
       });
