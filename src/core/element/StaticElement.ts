@@ -21,7 +21,15 @@ class StaticElement {
     // 移动相关属性
     _isMoving: boolean = false;
     _animationId: number | null = null;
-    _moveSpeed: number = 2; // 每帧移动的像素数
+    _moveSpeed: number = 6; // 每帧移动的像素数
+
+    // 元素激活状态
+    _active: boolean = true;
+
+    // 透明度动画相关
+    _opacity: number = 1;
+    _fadeAnimationId: number | null = null;
+    _fadeSpeed: number = 0.08; // 每帧透明度变化量
 
     constructor(props: ElementData, owner: GameView) {
         this._id = props.id || '';
@@ -89,6 +97,12 @@ class StaticElement {
         // 停止移动动画
         this.stopMove();
 
+        // 停止淡入淡出动画
+        if (this._fadeAnimationId) {
+            cancelAnimationFrame(this._fadeAnimationId);
+            this._fadeAnimationId = null;
+        }
+
         // 移除事件监听器
         if (this._elementDom) {
             this._elementDom.removeEventListener('click', this.startMove);
@@ -117,7 +131,9 @@ class StaticElement {
 
         // 边界检查
         if (this._isOutOfBounds(newX, newY)) {
+            this._active = false;
             this.stopMove();
+            this._startFadeOut(); // 开始淡出动画
             return;
         }
 
@@ -157,7 +173,57 @@ class StaticElement {
         const gridConfig = this._owner?._gridConfig;
         if (!gridConfig) return false;
 
-        return x < 0 || y < 0 || x + this._width > gridConfig.cols || y + this._height > gridConfig.rows;
+        return x + this._width <= 0 || y + this._height <= 0 || x >= gridConfig.cols || y >= gridConfig.rows;
+    };
+
+    /**
+     * @description 开始淡出动画
+     */
+    private _startFadeOut = () => {
+        if (this._fadeAnimationId) {
+            cancelAnimationFrame(this._fadeAnimationId);
+        }
+        this._fadeOut();
+    };
+
+    /**
+     * @description 开始淡入动画
+     */
+    private _startFadeIn = () => {
+        if (this._fadeAnimationId) {
+            cancelAnimationFrame(this._fadeAnimationId);
+        }
+        this._fadeIn();
+    };
+
+    /**
+     * @description 淡出动画帧函数
+     */
+    private _fadeOut = () => {
+        if (this._opacity <= 0) {
+            this._opacity = 0;
+            this._fadeAnimationId = null;
+            return;
+        }
+
+        this._opacity = Math.max(0, this._opacity - this._fadeSpeed);
+        this._updateDOMStyle();
+        this._fadeAnimationId = requestAnimationFrame(this._fadeOut);
+    };
+
+    /**
+     * @description 淡入动画帧函数
+     */
+    private _fadeIn = () => {
+        if (this._opacity >= 1) {
+            this._opacity = 1;
+            this._fadeAnimationId = null;
+            return;
+        }
+
+        this._opacity = Math.min(1, this._opacity + this._fadeSpeed);
+        this._updateDOMStyle();
+        this._fadeAnimationId = requestAnimationFrame(this._fadeIn);
     };
 
     /**
@@ -168,6 +234,7 @@ class StaticElement {
 
         this._elementDom.style.width = `${this.width}px`;
         this._elementDom.style.height = `${this.height}px`;
+        this._elementDom.style.opacity = this._opacity.toString();
 
         if (this.position) {
             this._elementDom.style.left = `${this.position?.x}px`;
@@ -226,6 +293,19 @@ class StaticElement {
             case 'right':
             case 'left':
                 return this._height * gridSize;
+        }
+    }
+
+    get active() {
+        return this._active;
+    }
+
+    set active(value: boolean) {
+        this._active = value;
+        if (value) {
+            this._startFadeIn();
+        } else {
+            this._startFadeOut();
         }
     }
     // #endregion
