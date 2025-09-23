@@ -20,9 +20,11 @@ const BoardView = () => {
 
     // 初始化 GameView
     useEffect(() => {
-        gameViewRef.current = new GameView();
+        if (!gameViewRef.current) {
+            gameViewRef.current = new GameView();
+        }
         const gameView = gameViewRef.current;
-        gameView.initView(boardViewRef.current as HTMLElement);
+        gameView.initViewDom(boardViewRef.current as HTMLElement);
         gameView.init(gridSize, LEVELS_LIST[currentLevelIndex] as LevelConfig);
     }, [currentLevelIndex, gridSize]);
 

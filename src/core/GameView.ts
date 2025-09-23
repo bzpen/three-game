@@ -25,8 +25,24 @@ class GameView {
 
     constructor() {}
 
+    // 销毁所有元素
+    destroy = () => {
+        // 销毁所有元素
+        this._elementList.forEach(element => {
+            element.destroy();
+        });
+
+        // 清空元素列表
+        this._elementList = [];
+
+        // 清空网格数据
+        this._gridData = [];
+    };
+
     // 初始化数据
     init = (gridSize: number, config: LevelConfig) => {
+        this.destroy();
+
         this._gridSize = gridSize;
         const { rows, cols, elements } = config;
         this._gridConfig = { rows, cols };
@@ -47,8 +63,8 @@ class GameView {
         });
     };
 
-    // 初始化视图
-    initView = (element: HTMLElement) => {
+    // 初始化视图Dom
+    initViewDom = (element: HTMLElement) => {
         this._viewDom = element;
     };
 

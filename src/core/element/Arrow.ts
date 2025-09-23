@@ -28,6 +28,8 @@ class Arrow extends StaticElement {
             right: '→',
         };
         this._elementDom.textContent = arrowSymbols[this._direction as keyof typeof arrowSymbols] || '→';
+
+        this._addEventListener();
     }
 }
 

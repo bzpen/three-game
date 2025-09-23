@@ -17,6 +17,12 @@ class StaticElement {
 
     // 元素所有者
     _owner: GameView | null = null;
+
+    // 移动相关属性
+    _isMoving: boolean = false;
+    _animationId: number | null = null;
+    _moveSpeed: number = 2; // 每帧移动的像素数
+
     constructor(props: ElementData, owner: GameView) {
         this._id = props.id || '';
         this._type = props.type;
@@ -33,7 +39,15 @@ class StaticElement {
         this._elementDom = document.createElement('div');
         this._elementDom.style.position = 'absolute';
         this._elementDom.style.backgroundColor = 'red';
+
+        this._addEventListener();
     }
+
+    _addEventListener = () => {
+        this._elementDom?.addEventListener('click', () => {
+            this.startMove();
+        });
+    };
 
     /**
      * @description 添加到网格
@@ -43,12 +57,122 @@ class StaticElement {
     addToGrid = (grid: HTMLElement) => {
         if (!this._elementDom) return;
 
-        this._elementDom.style.left = `${this.position?.x}px`;
-        this._elementDom.style.top = `${this.position?.y}px`;
+        grid.appendChild(this._elementDom);
+        this._updateDOMStyle();
+    };
+
+    /**
+     * @description 开始移动，按箭头方向匀速移动
+     */
+    startMove = () => {
+        if (this._isMoving) return; // 如果已在移动中，直接返回
+
+        this._isMoving = true;
+        this._animate();
+    };
+
+    /**
+     * @description 停止移动
+     */
+    stopMove = () => {
+        this._isMoving = false;
+        if (this._animationId) {
+            cancelAnimationFrame(this._animationId);
+            this._animationId = null;
+        }
+    };
+
+    /**
+     * @description 销毁元素
+     */
+    destroy = () => {
+        // 停止移动动画
+        this.stopMove();
+
+        // 移除事件监听器
+        if (this._elementDom) {
+            this._elementDom.removeEventListener('click', this.startMove);
+
+            // 从父元素中移除DOM
+            if (this._elementDom.parentNode) {
+                this._elementDom.parentNode.removeChild(this._elementDom);
+            }
+
+            this._elementDom = null;
+        }
+
+        // 清理引用
+        this._owner = null;
+    };
+
+    /**
+     * @description 移动动画帧函数
+     */
+    private _animate = () => {
+        if (!this._isMoving || !this._elementDom) return;
+
+        const { dx, dy } = this._getDirectionVector();
+        const newX = this._position.x + (dx * this._moveSpeed) / (this._owner?.gridSize || 40);
+        const newY = this._position.y + (dy * this._moveSpeed) / (this._owner?.gridSize || 40);
+
+        // 边界检查
+        if (this._isOutOfBounds(newX, newY)) {
+            this.stopMove();
+            return;
+        }
+
+        // 更新位置
+        this._position.x = newX;
+        this._position.y = newY;
+
+        // 更新DOM样式
+        this._updateDOMStyle();
+
+        // 继续动画
+        this._animationId = requestAnimationFrame(this._animate);
+    };
+
+    /**
+     * @description 获取方向向量
+     */
+    private _getDirectionVector = () => {
+        switch (this._direction) {
+            case 'up':
+                return { dx: 0, dy: -1 };
+            case 'down':
+                return { dx: 0, dy: 1 };
+            case 'left':
+                return { dx: -1, dy: 0 };
+            case 'right':
+                return { dx: 1, dy: 0 };
+            default:
+                return { dx: 0, dy: 0 };
+        }
+    };
+
+    /**
+     * @description 检查是否超出边界
+     */
+    private _isOutOfBounds = (x: number, y: number) => {
+        const gridConfig = this._owner?._gridConfig;
+        if (!gridConfig) return false;
+
+        return x < 0 || y < 0 || x + this._width > gridConfig.cols || y + this._height > gridConfig.rows;
+    };
+
+    /**
+     * @description 更新DOM位置
+     */
+    private _updateDOMStyle = () => {
+        if (!this._elementDom) return;
+
         this._elementDom.style.width = `${this.width}px`;
         this._elementDom.style.height = `${this.height}px`;
 
-        grid.appendChild(this._elementDom);
+        if (this.position) {
+            this._elementDom.style.left = `${this.position?.x}px`;
+            this._elementDom.style.top = `${this.position?.y}px`;
+        }
     };
 
     // #region 熟悉获取 设置
