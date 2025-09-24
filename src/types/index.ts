@@ -1,10 +1,6 @@
 // 游戏相关类型定义
 
-export interface GridData {
-    x: number;
-    y: number;
-    elementType: string;
-}
+export type GridData = (string | number)[][];
 
 export interface ElementData {
     id: string;

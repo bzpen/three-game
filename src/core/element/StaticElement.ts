@@ -2,8 +2,9 @@
 
 import { ElementData } from '../../types';
 import GameView from '../GameView';
+import AnimeBase from './AnimeBase';
 
-class StaticElement {
+class StaticElement extends AnimeBase {
     _id: string = '';
 
     _type: string;
@@ -21,7 +22,7 @@ class StaticElement {
     // 移动相关属性
     _isMoving: boolean = false;
     _animationId: number | null = null;
-    _moveSpeed: number = 6; // 每帧移动的像素数
+    _moveSpeed: number = 10; // 每帧移动的像素数
 
     // 元素激活状态
     _active: boolean = true;
@@ -32,6 +33,7 @@ class StaticElement {
     _fadeSpeed: number = 0.08; // 每帧透明度变化量
 
     constructor(props: ElementData, owner: GameView) {
+        super();
         this._id = props.id || '';
         this._type = props.type;
         this._direction = props.direction;
@@ -82,18 +84,39 @@ class StaticElement {
     /**
      * @description 停止移动
      */
-    stopMove = () => {
-        this._isMoving = false;
+    stopMove = (isAnime: boolean = true) => {
         if (this._animationId) {
             cancelAnimationFrame(this._animationId);
             this._animationId = null;
         }
+        this._isMoving = false;
+
+        this._stopAnimeAfterFixPosition();
+
+        // 挤压碰撞动画
+        if (isAnime) {
+            this._playSqueezeAnime(this._elementDom);
+        }
+    };
+
+    /**
+     * @description 停止移动后并适配固定位置
+     */
+    _stopAnimeAfterFixPosition = () => {
+        this._position = {
+            x: Math.round(this._position.x) || 0,
+            y: Math.round(this._position.y) || 0,
+        };
+        this._updateDOMStyle();
     };
 
     /**
      * @description 销毁元素
      */
     destroy = () => {
+        // 停止动画
+        this._destroyAnime();
+
         // 停止移动动画
         this.stopMove();
 
@@ -132,7 +155,7 @@ class StaticElement {
         // 边界检查
         if (this._isOutOfBounds(newX, newY)) {
             this._active = false;
-            this.stopMove();
+            this.stopMove(false);
             this._startFadeOut(); // 开始淡出动画
             return;
         }
@@ -144,8 +167,13 @@ class StaticElement {
         // 更新DOM样式
         this._updateDOMStyle();
 
+        this._owner?.updateGridData();
+        const isColliding = this._owner?.checkInAnimeElementStatus(this);
+
         // 继续动画
-        this._animationId = requestAnimationFrame(this._animate);
+        if (!isColliding) {
+            this._animationId = requestAnimationFrame(this._animate);
+        }
     };
 
     /**
@@ -242,6 +270,33 @@ class StaticElement {
         }
     };
 
+    /**
+     * @description 计算元素占用的网格范围
+     */
+    getGridRange() {
+        if (!this._owner) return null;
+        const gridConfig = this._owner?._gridConfig;
+        if (!gridConfig) return null;
+
+        const gridSize = this._owner?.gridSize;
+
+        const position = this.position;
+        if (!position) return null;
+
+        const x = position.x / gridSize;
+        const y = position.y / gridSize;
+
+        const width = this.width! / gridSize;
+        const height = this.height! / gridSize;
+
+        const minX = Math.max(0, Math.floor(x));
+        const maxX = Math.min(gridConfig.cols - 1, Math.ceil(x + width - 1));
+        const minY = Math.max(0, Math.floor(y));
+        const maxY = Math.min(gridConfig.rows - 1, Math.ceil(y + height - 1));
+
+        return { minX, maxX, minY, maxY };
+    }
+
     // #region 熟悉获取 设置
 
     get position() {
@@ -308,6 +363,11 @@ class StaticElement {
             this._startFadeOut();
         }
     }
+
+    get direction() {
+        return this._direction;
+    }
+
     // #endregion
 }
 

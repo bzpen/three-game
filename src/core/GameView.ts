@@ -10,7 +10,7 @@ class GameView {
     _elementList: StaticElement[] = [];
 
     // 网格数据
-    _gridData: GridData[] = [];
+    _gridData: GridData = [];
 
     // 网格固定配置
     _gridConfig: GridConfig = {
@@ -61,6 +61,7 @@ class GameView {
             newElement.addToGrid(this._viewDom as HTMLElement);
             this._elementList.push(newElement);
         });
+        this.updateGridData();
     };
 
     // 初始化视图Dom
@@ -79,39 +80,77 @@ class GameView {
 
         // 遍历所有元素，在元素占用的网格位置设置元素id
         this._elementList.forEach(element => {
-            const { x, y } = element._position;
-            const width = element._width;
-            const height = element._height;
+            const gridRange = element.getGridRange();
+            if (!gridRange) {
+                return;
+            }
+            const { minX, maxX, minY, maxY } = gridRange;
 
-            // 计算元素在网格中的起始位置
-            const gridX = Math.floor(x / this._gridSize);
-            const gridY = Math.floor(y / this._gridSize);
-
-            // 计算元素占用的网格范围
-            const gridWidth = Math.ceil(width / this._gridSize);
-            const gridHeight = Math.ceil(height / this._gridSize);
-
-            // 在元素占用的所有网格位置设置元素id
-            for (let row = gridY; row < gridY + gridHeight && row < this._gridConfig.rows; row++) {
-                for (let col = gridX; col < gridX + gridWidth && col < this._gridConfig.cols; col++) {
-                    if (row >= 0 && col >= 0) {
-                        gridArray[row][col] = element._id;
-                    }
+            if (minX === maxX) {
+                for (let row = minY; row <= maxY; row++) {
+                    gridArray[row][minX] = element._id;
+                }
+            } else {
+                for (let col = minX; col <= maxX; col++) {
+                    gridArray[minY][col] = element._id;
                 }
             }
         });
-
         // 将二维数组转换为GridData数组格式
-        this._gridData = [];
-        for (let row = 0; row < this._gridConfig.rows; row++) {
-            for (let col = 0; col < this._gridConfig.cols; col++) {
-                this._gridData.push({
-                    x: col,
-                    y: row,
-                    elementType: gridArray[row][col].toString(),
-                });
+        this._gridData = gridArray as GridData;
+    };
+
+    /**
+     * @description 判断运动中的元素状态
+     */
+    checkInAnimeElementStatus = (element: StaticElement) => {
+        // 获取元素占用的网格范围
+        const gridRange = element.getGridRange();
+        if (!gridRange) {
+            return false;
+        }
+
+        let isColliding = false;
+        const collidedElementId = new Set<string>();
+
+        const { minX, maxX, minY, maxY } = gridRange;
+
+        if (minX === maxX) {
+            for (let row = minY; row <= maxY; row++) {
+                if (
+                    this._gridData[row][minX] &&
+                    this._gridData[row][minX] !== 0 &&
+                    this._gridData[row][minX] !== element._id
+                ) {
+                    isColliding = true;
+                    collidedElementId.add(this._gridData[row][minX] as string);
+                }
+            }
+        } else {
+            for (let col = minX; col <= maxX; col++) {
+                if (
+                    this._gridData[minY][col] &&
+                    this._gridData[minY][col] !== 0 &&
+                    this._gridData[minY][col] !== element._id
+                ) {
+                    isColliding = true;
+                    collidedElementId.add(this._gridData[minY][col] as string);
+                    break;
+                }
             }
         }
+
+        if (isColliding && collidedElementId.size > 0) {
+            collidedElementId.forEach(id => {
+                const element = this._elementList.find(e => e._id === id);
+                if (element) {
+                    element.stopMove();
+                }
+            });
+            element.stopMove();
+        }
+
+        return isColliding;
     };
 
     // #region 熟悉获取 设置
