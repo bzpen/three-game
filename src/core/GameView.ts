@@ -153,6 +153,38 @@ class GameView {
         return isColliding;
     };
 
+    checkOutOfBounds = (element: StaticElement) => {
+        const position = element.position;
+        if (!position) {
+            return false;
+        }
+
+        const viewDomRect = this._viewDom?.getBoundingClientRect();
+        const windowWidth = window.innerWidth;
+        const windowHeight = window.innerHeight;
+        const width = element.width;
+        const height = element.height;
+
+        if (!viewDomRect || !windowWidth || !windowHeight || !width || !height) {
+            return false;
+        }
+        const { x, y } = position;
+
+        const elementRect = {
+            x: x + viewDomRect.left,
+            y: y + viewDomRect.top,
+            width,
+            height,
+        };
+
+        return (
+            elementRect.x + elementRect.width <= 0 ||
+            elementRect.y + elementRect.height <= 0 ||
+            elementRect.x >= windowWidth ||
+            elementRect.y >= windowHeight
+        );
+    };
+
     // #region 熟悉获取 设置
     get gridSize() {
         return this._gridSize;

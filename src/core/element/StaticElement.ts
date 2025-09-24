@@ -27,11 +27,6 @@ class StaticElement extends AnimeBase {
     // 元素激活状态
     _active: boolean = true;
 
-    // 透明度动画相关
-    _opacity: number = 1;
-    _fadeAnimationId: number | null = null;
-    _fadeSpeed: number = 0.08; // 每帧透明度变化量
-
     constructor(props: ElementData, owner: GameView) {
         super();
         this._id = props.id || '';
@@ -120,12 +115,6 @@ class StaticElement extends AnimeBase {
         // 停止移动动画
         this.stopMove();
 
-        // 停止淡入淡出动画
-        if (this._fadeAnimationId) {
-            cancelAnimationFrame(this._fadeAnimationId);
-            this._fadeAnimationId = null;
-        }
-
         // 移除事件监听器
         if (this._elementDom) {
             this._elementDom.removeEventListener('click', this.startMove);
@@ -153,10 +142,9 @@ class StaticElement extends AnimeBase {
         const newY = this._position.y + (dy * this._moveSpeed) / (this._owner?.gridSize || 40);
 
         // 边界检查
-        if (this._isOutOfBounds(newX, newY)) {
+        if (this._owner?.checkOutOfBounds(this)) {
             this._active = false;
             this.stopMove(false);
-            this._startFadeOut(); // 开始淡出动画
             return;
         }
 
@@ -195,63 +183,27 @@ class StaticElement extends AnimeBase {
     };
 
     /**
-     * @description 检查是否超出边界
+     * @description 检查是否超出边界（浏览器窗口边界）
      */
     private _isOutOfBounds = (x: number, y: number) => {
-        const gridConfig = this._owner?._gridConfig;
-        if (!gridConfig) return false;
+        const gridSize = this._owner?.gridSize;
+        if (!gridSize) return false;
 
-        return x + this._width <= 0 || y + this._height <= 0 || x >= gridConfig.cols || y >= gridConfig.rows;
-    };
+        // 获取浏览器窗口尺寸
+        const screenWidth = window.innerWidth;
+        const screenHeight = window.innerHeight;
 
-    /**
-     * @description 开始淡出动画
-     */
-    private _startFadeOut = () => {
-        if (this._fadeAnimationId) {
-            cancelAnimationFrame(this._fadeAnimationId);
-        }
-        this._fadeOut();
-    };
+        // 将网格坐标转换为像素坐标
+        const position = this._convertGridToPixelPosition({ x, y }, gridSize, this._direction);
+        const elementWidth = this.width;
+        const elementHeight = this.height;
 
-    /**
-     * @description 开始淡入动画
-     */
-    private _startFadeIn = () => {
-        if (this._fadeAnimationId) {
-            cancelAnimationFrame(this._fadeAnimationId);
-        }
-        this._fadeIn();
-    };
-
-    /**
-     * @description 淡出动画帧函数
-     */
-    private _fadeOut = () => {
-        if (this._opacity <= 0) {
-            this._opacity = 0;
-            this._fadeAnimationId = null;
-            return;
-        }
-
-        this._opacity = Math.max(0, this._opacity - this._fadeSpeed);
-        this._updateDOMStyle();
-        this._fadeAnimationId = requestAnimationFrame(this._fadeOut);
-    };
-
-    /**
-     * @description 淡入动画帧函数
-     */
-    private _fadeIn = () => {
-        if (this._opacity >= 1) {
-            this._opacity = 1;
-            this._fadeAnimationId = null;
-            return;
-        }
-
-        this._opacity = Math.min(1, this._opacity + this._fadeSpeed);
-        this._updateDOMStyle();
-        this._fadeAnimationId = requestAnimationFrame(this._fadeIn);
+        return (
+            position.x + elementWidth! <= 0 ||
+            position.y + elementHeight! <= 0 ||
+            position.x >= screenWidth ||
+            position.y >= screenHeight
+        );
     };
 
     /**
@@ -262,7 +214,7 @@ class StaticElement extends AnimeBase {
 
         this._elementDom.style.width = `${this.width}px`;
         this._elementDom.style.height = `${this.height}px`;
-        this._elementDom.style.opacity = this._opacity.toString();
+        this._elementDom.style.opacity = this.active ? '1' : '0';
 
         if (this.position) {
             this._elementDom.style.left = `${this.position?.x}px`;
@@ -297,30 +249,45 @@ class StaticElement extends AnimeBase {
         return { minX, maxX, minY, maxY };
     }
 
-    // #region 熟悉获取 设置
-
-    get position() {
-        const gridSize = this._owner?.gridSize;
-        if (!gridSize) return this._position;
-
-        switch (this._direction) {
+    /**
+     * 根据方向转换网格坐标到像素坐标
+     */
+    private _convertGridToPixelPosition(
+        gridPosition: { x: number; y: number },
+        gridSize: number,
+        direction: string,
+    ): { x: number; y: number } {
+        switch (direction) {
             case 'up':
                 return {
-                    x: this._position.x * gridSize,
-                    y: (this._position.y - 1) * gridSize,
+                    x: gridPosition.x * gridSize,
+                    y: (gridPosition.y - 1) * gridSize,
                 };
             case 'right':
             case 'down':
                 return {
-                    x: this._position.x * gridSize,
-                    y: this._position.y * gridSize,
+                    x: gridPosition.x * gridSize,
+                    y: gridPosition.y * gridSize,
                 };
             case 'left':
                 return {
-                    x: (this._position.x - 1) * gridSize,
-                    y: this._position.y * gridSize,
+                    x: (gridPosition.x - 1) * gridSize,
+                    y: gridPosition.y * gridSize,
+                };
+            default:
+                return {
+                    x: gridPosition.x * gridSize,
+                    y: gridPosition.y * gridSize,
                 };
         }
+    }
+
+    // #region 熟悉获取 设置
+    get position() {
+        const gridSize = this._owner?.gridSize;
+        if (!gridSize) return this._position;
+
+        return this._convertGridToPixelPosition(this._position, gridSize, this._direction);
     }
 
     get width() {
@@ -357,11 +324,7 @@ class StaticElement extends AnimeBase {
 
     set active(value: boolean) {
         this._active = value;
-        if (value) {
-            this._startFadeIn();
-        } else {
-            this._startFadeOut();
-        }
+        this._updateDOMStyle();
     }
 
     get direction() {
