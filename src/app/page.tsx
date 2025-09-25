@@ -1,9 +1,9 @@
-import BoardView from '@/components/BoardView';
+import BoardViewContainer from '@/components/BoardViewContainer';
 
 export default function Home() {
     return (
         <main className='min-h-[100svh] w-full flex items-center justify-center overflow-hidden'>
-            <BoardView />
+            <BoardViewContainer />
         </main>
     );
 }

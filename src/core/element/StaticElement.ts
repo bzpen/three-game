@@ -142,8 +142,9 @@ class StaticElement extends AnimeBase {
 
         // 边界检查
         if (this._owner?.checkOutOfBounds(this)) {
-            this._active = false;
+            this.active = false;
             this.stopMove(false);
+            this._owner?.reduceElementNum();
             return;
         }
 

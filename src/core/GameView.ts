@@ -23,6 +23,11 @@ class GameView {
 
     _viewDom: HTMLElement | null = null;
 
+    _elementNum: number = 999;
+
+    // 元素数量变化回调
+    _elementNumChangeCallback: (num: number) => void = () => {};
+
     constructor() {}
 
     // 销毁所有元素
@@ -46,6 +51,7 @@ class GameView {
         this._gridSize = gridSize;
         const { rows, cols, elements } = config;
         this._gridConfig = { rows, cols };
+        this._elementNum = elements.length;
         this._initElements(elements);
     };
 
@@ -183,6 +189,21 @@ class GameView {
             elementRect.x >= windowWidth ||
             elementRect.y >= windowHeight
         );
+    };
+
+    /**
+     * @description 设置元素数量变化回调
+     */
+    setElementNumChangeCallback = (callback: (num: number) => void) => {
+        this._elementNumChangeCallback = callback;
+    };
+
+    /**
+     * @description 减少元素数量
+     */
+    reduceElementNum = () => {
+        this._elementNum--;
+        this._elementNumChangeCallback(this._elementNum);
     };
 
     // #region 熟悉获取 设置

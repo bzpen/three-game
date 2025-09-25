@@ -2,21 +2,19 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import GameView from '@/core/GameView';
-import { LEVELS_LIST } from '@/config/LevelConfig';
 import { LevelConfig } from '@/types';
 
-const BoardView = () => {
-    const [currentLevelIndex] = useState(0);
-
+const BoardView = ({ levelData, nextLevel }: { levelData: LevelConfig; nextLevel: () => void }) => {
     // 自适应状态
     const [gridSize, setGridSize] = useState(40);
+    const [elementNum, setElementNum] = useState(9999);
 
     const boardViewRef = useRef<HTMLDivElement>(null);
     const gameViewRef = useRef<GameView | null>(null);
 
     const { cols, rows } = useMemo(() => {
-        return { cols: LEVELS_LIST[currentLevelIndex].cols, rows: LEVELS_LIST[currentLevelIndex].rows };
-    }, [currentLevelIndex]);
+        return { cols: levelData.cols, rows: levelData.rows };
+    }, [levelData]);
 
     // 初始化 GameView
     useEffect(() => {
@@ -25,8 +23,10 @@ const BoardView = () => {
         }
         const gameView = gameViewRef.current;
         gameView.initViewDom(boardViewRef.current as HTMLElement);
-        gameView.init(gridSize, LEVELS_LIST[currentLevelIndex] as LevelConfig);
-    }, [currentLevelIndex, gridSize]);
+        gameView.init(gridSize, levelData);
+        setElementNum(levelData.elements.length);
+        gameView.setElementNumChangeCallback(setElementNum);
+    }, [levelData, gridSize]);
 
     // 根据父容器尺寸自适应计算 gridSize
     useEffect(() => {
@@ -55,6 +55,13 @@ const BoardView = () => {
             height: rows * gridSize,
         };
     }, [gridSize, rows, cols]);
+
+    useEffect(() => {
+        if (elementNum === 0) {
+            nextLevel();
+            setElementNum(9999);
+        }
+    }, [elementNum, nextLevel]);
 
     return (
         <div

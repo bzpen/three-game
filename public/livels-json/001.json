@@ -1,0 +1,51 @@
+{
+    "id": 1758778891420,
+    "rows": 5,
+    "cols": 5,
+    "elements": [
+        {
+            "id": "arrow-1",
+            "type": "arrow",
+            "direction": "left",
+            "width": 2,
+            "height": 1,
+            "position": {
+                "x": 2,
+                "y": 2
+            }
+        },
+        {
+            "id": "arrow-2",
+            "type": "arrow",
+            "direction": "down",
+            "width": 1,
+            "height": 2,
+            "position": {
+                "x": 1,
+                "y": 2
+            }
+        },
+        {
+            "id": "arrow-3",
+            "type": "arrow",
+            "direction": "right",
+            "width": 2,
+            "height": 1,
+            "position": {
+                "x": 2,
+                "y": 1
+            }
+        },
+        {
+            "id": "arrow-4",
+            "type": "arrow",
+            "direction": "right",
+            "width": 2,
+            "height": 1,
+            "position": {
+                "x": 2,
+                "y": 3
+            }
+        }
+    ]
+}
