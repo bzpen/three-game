@@ -10,7 +10,7 @@
     background-color: #d2d0ce;
     font-size: 30px;
     color: #000;
-    border-radius: 5px;
+    /* border-radius: 5px; */
 }
 
 .arrow-element:hover {

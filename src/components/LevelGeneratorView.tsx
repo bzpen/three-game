@@ -62,9 +62,9 @@ const GeneratorBoard = ({ levelConfig, gridSize }: GeneratorBoardProps) => {
 };
 
 const LevelGeneratorView = () => {
-    const [rows, setRows] = useState(10);
-    const [cols, setCols] = useState(10);
-    const [arrowCount, setArrowCount] = useState(3);
+    const [rows, setRows] = useState(21);
+    const [cols, setCols] = useState(21);
+    const [arrowCount, setArrowCount] = useState(130);
     const [gridSize, setGridSize] = useState(40);
     const [currentLevel, setCurrentLevel] = useState<LevelConfig | null>(null);
     const [isGenerating, setIsGenerating] = useState(false);

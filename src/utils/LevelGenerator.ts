@@ -74,11 +74,20 @@ export class LevelGenerator {
         // 第二阶段：从中心开始分配方向，内置死锁检测和解决
         const elements = this.assignDirections(arrowInfos);
 
+        console.log(
+            `原始箭头数: ${arrowInfos.length}, 最终元素数: ${elements.length}, 删除数: ${arrowInfos.length - elements.length}`,
+        );
+
+        // 第三阶段：如果删除了太多箭头，尝试在空白位置重新填充
+        const finalElements = this.refillEmptyPositions(elements, arrowCount);
+
+        console.log(`重新填充后元素数: ${finalElements.length}, 增加数: ${finalElements.length - elements.length}`);
+
         return {
             id: levelId,
             rows: this.rows,
             cols: this.cols,
-            elements,
+            elements: finalElements,
         };
     }
 
@@ -131,15 +140,15 @@ export class LevelGenerator {
     }
 
     /**
-     * 获取指定半径上的所有可能位置
+     * 获取指定半径上的所有可能位置（正方形外扩）
      */
     private getPositionsAtRadius(radius: number): Position[] {
         const positions: Position[] = [];
 
         for (let dx = -radius; dx <= radius; dx++) {
             for (let dy = -radius; dy <= radius; dy++) {
-                // 只取圆周上的点（曼哈顿距离等于radius的点）
-                if (Math.abs(dx) + Math.abs(dy) === radius) {
+                // 只取正方形边界上的点（切比雪夫距离等于radius的点）
+                if (Math.max(Math.abs(dx), Math.abs(dy)) === radius) {
                     const x = this.centerX + dx;
                     const y = this.centerY + dy;
 
@@ -259,8 +268,12 @@ export class LevelGenerator {
             const element = this.assignDirectionWithDeadlockCheck(arrowInfo, elements);
             if (element) {
                 elements.push(element);
+            } else {
+                // 如果element为null，说明无法找到合适的方向，箭头被删除
+                // 需要清空该箭头在网格中占用的位置，让后续箭头可以使用这些位置
+                this.clearArrowCells(arrowInfo);
+                console.log(`删除箭头 ${arrowInfo.id}，清空网格位置:`, arrowInfo.cells);
             }
-            // 如果element为null，说明无法找到合适的方向，箭头被删除
         }
 
         return elements;
@@ -285,7 +298,7 @@ export class LevelGenerator {
     }
 
     /**
-     * 为单个箭头分配方向，考虑死锁检测
+     * 为单个箭头分配方向，考虑死锁检测和方向平衡
      */
     private assignDirectionWithDeadlockCheck(
         arrowInfo: ArrowInfo,
@@ -296,17 +309,20 @@ export class LevelGenerator {
         // 优先尝试随机方向，降低死锁检测的影响
         const shuffledDirections = this.shuffleArray([...possibleDirections]);
 
-        // 先尝试第一个随机方向，如果没有严重死锁就使用
+        // 先尝试第一个随机方向，如果没有严重死锁且不会造成方向过于集中就使用
         for (const direction of shuffledDirections) {
             const element = this.createElementWithDirection(arrowInfo, direction);
 
-            // 只检查真正严重的死锁（面对面的相反方向）
-            if (!this.wouldCauseSeriousDeadlock(element, existingElements)) {
+            // 检查严重死锁和方向平衡
+            if (
+                !this.wouldCauseSeriousDeadlock(element, existingElements) &&
+                !this.wouldCauseDirectionImbalance(element, existingElements)
+            ) {
                 return element;
             }
         }
 
-        // 如果所有方向都会导致严重死锁，尝试探索其他位置
+        // 如果所有方向都会导致问题，尝试探索其他位置
         return this.exploreAlternativePositions(arrowInfo, existingElements);
     }
 
@@ -370,6 +386,83 @@ export class LevelGenerator {
             }
         }
         return false;
+    }
+
+    /**
+     * 检查新元素是否会造成方向不平衡（同一行/列过多相同方向）
+     */
+    private wouldCauseDirectionImbalance(newElement: ElementData, existingElements: ElementData[]): boolean {
+        const newPos = newElement.position;
+        const newDir = newElement.direction;
+
+        // 计算同一行中相同方向的箭头数量
+        let sameRowSameDirection = 0;
+        // 计算同一列中相同方向的箭头数量
+        let sameColSameDirection = 0;
+
+        for (const element of existingElements) {
+            const elementPos = element.position;
+            const elementDir = element.direction;
+
+            // 检查同一行的相同方向
+            if (this.isInSameRow(newPos, elementPos, newElement, element) && elementDir === newDir) {
+                sameRowSameDirection++;
+            }
+
+            // 检查同一列的相同方向
+            if (this.isInSameCol(newPos, elementPos, newElement, element) && elementDir === newDir) {
+                sameColSameDirection++;
+            }
+        }
+
+        // 放宽限制：如果同一行或同一列已经有3个或更多相同方向的箭头，则认为会造成不平衡
+        return sameRowSameDirection >= 3 || sameColSameDirection >= 3;
+    }
+
+    /**
+     * 检查两个箭头是否在同一行（考虑箭头的占用范围）
+     */
+    private isInSameRow(pos1: Position, pos2: Position, element1: ElementData, element2: ElementData): boolean {
+        // 获取两个箭头占用的行范围
+        const rows1 = this.getOccupiedRows(pos1, element1);
+        const rows2 = this.getOccupiedRows(pos2, element2);
+
+        // 检查是否有重叠的行
+        return rows1.some(row => rows2.includes(row));
+    }
+
+    /**
+     * 检查两个箭头是否在同一列（考虑箭头的占用范围）
+     */
+    private isInSameCol(pos1: Position, pos2: Position, element1: ElementData, element2: ElementData): boolean {
+        // 获取两个箭头占用的列范围
+        const cols1 = this.getOccupiedCols(pos1, element1);
+        const cols2 = this.getOccupiedCols(pos2, element2);
+
+        // 检查是否有重叠的列
+        return cols1.some(col => cols2.includes(col));
+    }
+
+    /**
+     * 获取箭头占用的行号数组
+     */
+    private getOccupiedRows(position: Position, element: ElementData): number[] {
+        const rows: number[] = [];
+        for (let i = 0; i < element.height; i++) {
+            rows.push(position.y + i);
+        }
+        return rows;
+    }
+
+    /**
+     * 获取箭头占用的列号数组
+     */
+    private getOccupiedCols(position: Position, element: ElementData): number[] {
+        const cols: number[] = [];
+        for (let i = 0; i < element.width; i++) {
+            cols.push(position.x + i);
+        }
+        return cols;
     }
 
     /**
@@ -437,7 +530,15 @@ export class LevelGenerator {
 
             for (const direction of shuffledDirections) {
                 const element = this.createElementWithDirection(altArrowInfo, direction);
-                if (!this.wouldCauseDeadlock(element, existingElements)) {
+                if (
+                    !this.wouldCauseDeadlock(element, existingElements) &&
+                    !this.wouldCauseDirectionImbalance(element, existingElements)
+                ) {
+                    // 找到可用的备选方案，更新网格状态
+                    this.restoreArrowCells(altArrowInfo);
+                    console.log(
+                        `使用备选起始位置: ${arrowInfo.id} -> ${altArrowInfo.cells.map(c => `(${c.x},${c.y})`).join(',')}`,
+                    );
                     return element;
                 }
             }
@@ -452,7 +553,15 @@ export class LevelGenerator {
 
             for (const direction of shuffledDirections) {
                 const element = this.createElementWithDirection(altArrowInfo, direction);
-                if (!this.wouldCauseDeadlock(element, existingElements)) {
+                if (
+                    !this.wouldCauseDeadlock(element, existingElements) &&
+                    !this.wouldCauseDirectionImbalance(element, existingElements)
+                ) {
+                    // 找到可用的备选方案，更新网格状态
+                    this.restoreArrowCells(altArrowInfo);
+                    console.log(
+                        `使用备选终点位置: ${arrowInfo.id} -> ${altArrowInfo.cells.map(c => `(${c.x},${c.y})`).join(',')}`,
+                    );
                     return element;
                 }
             }
@@ -706,6 +815,93 @@ export class LevelGenerator {
         }
 
         return false;
+    }
+
+    /**
+     * 第三阶段：在空白位置重新填充箭头
+     */
+    private refillEmptyPositions(existingElements: ElementData[], targetCount: number): ElementData[] {
+        const elements = [...existingElements];
+
+        // 如果已经达到目标数量，直接返回
+        if (elements.length >= targetCount) {
+            return elements;
+        }
+
+        // 重新构建网格状态以反映当前元素的占用情况
+        this.rebuildGridFromElements(elements);
+
+        const needCount = targetCount - elements.length;
+        console.log(`需要重新填充 ${needCount} 个箭头`);
+
+        // 使用更宽松的策略尝试填充空白位置
+        let addedCount = 0;
+        let nextArrowId = elements.length + 1;
+
+        // 从中心开始，逐步向外扩展寻找空位
+        for (let radius = 0; radius < Math.max(this.rows, this.cols) && addedCount < needCount; radius++) {
+            const positions = this.getPositionsAtRadius(radius);
+
+            for (const pos of positions) {
+                if (addedCount >= needCount) break;
+
+                const arrowInfo = this.tryPlaceArrowAt(pos.x, pos.y, `arrow-refill-${nextArrowId}`);
+                if (arrowInfo) {
+                    // 使用更宽松的方向分配策略
+                    const element = this.assignDirectionWithRelaxedRules(arrowInfo, elements);
+                    if (element) {
+                        elements.push(element);
+                        addedCount++;
+                        nextArrowId++;
+                        console.log(`重新填充箭头 ${element.id} 在位置 (${pos.x}, ${pos.y})`);
+                    } else {
+                        // 如果无法分配方向，清空占用的网格位置
+                        this.clearArrowCells(arrowInfo);
+                    }
+                }
+            }
+        }
+
+        return elements;
+    }
+
+    /**
+     * 根据现有元素重新构建网格状态
+     */
+    private rebuildGridFromElements(elements: ElementData[]): void {
+        // 清空网格
+        this.resetGrid();
+
+        // 根据元素重新填充网格
+        for (const element of elements) {
+            if (element.width === 2 && element.height === 1) {
+                // 水平箭头
+                this.fillHorizontal(element.position.x, element.position.y, element.id);
+            } else if (element.width === 1 && element.height === 2) {
+                // 垂直箭头
+                this.fillVertical(element.position.x, element.position.y, element.id);
+            }
+        }
+    }
+
+    /**
+     * 使用更宽松规则分配方向（用于重新填充阶段）
+     */
+    private assignDirectionWithRelaxedRules(arrowInfo: ArrowInfo, existingElements: ElementData[]): ElementData | null {
+        const possibleDirections = this.getPossibleDirections(arrowInfo.layout);
+        const shuffledDirections = this.shuffleArray([...possibleDirections]);
+
+        // 只检查严重死锁，不检查方向平衡
+        for (const direction of shuffledDirections) {
+            const element = this.createElementWithDirection(arrowInfo, direction);
+
+            // 只检查严重死锁，放宽方向平衡要求
+            if (!this.wouldCauseSeriousDeadlock(element, existingElements)) {
+                return element;
+            }
+        }
+
+        return null;
     }
 }
 
