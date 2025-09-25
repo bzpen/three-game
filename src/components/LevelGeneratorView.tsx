@@ -87,6 +87,7 @@ const LevelGeneratorView = () => {
     // 初始生成
     useEffect(() => {
         generateNewLevel();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     // 自适应 gridSize
@@ -138,7 +139,7 @@ const LevelGeneratorView = () => {
                                     <input
                                         type='number'
                                         min='5'
-                                        max='20'
+                                        max='100'
                                         value={rows}
                                         onChange={e => setRows(Number(e.target.value))}
                                         className='w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white'
@@ -149,7 +150,7 @@ const LevelGeneratorView = () => {
                                     <input
                                         type='number'
                                         min='5'
-                                        max='20'
+                                        max='100'
                                         value={cols}
                                         onChange={e => setCols(Number(e.target.value))}
                                         className='w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white'
@@ -166,14 +167,14 @@ const LevelGeneratorView = () => {
                             <input
                                 type='range'
                                 min='1'
-                                max='10'
+                                max='100'
                                 value={arrowCount}
                                 onChange={e => setArrowCount(Number(e.target.value))}
                                 className='w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-lg appearance-none cursor-pointer'
                             />
                             <div className='flex justify-between text-xs text-gray-600 dark:text-gray-400 mt-1'>
                                 <span>1</span>
-                                <span>10</span>
+                                <span>100</span>
                             </div>
                         </div>
 

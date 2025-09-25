@@ -19,48 +19,63 @@ interface Position {
 }
 
 /**
- * 关卡生成器
+ * 网格单元类型
+ */
+type GridCell = string | null;
+
+/**
+ * 二维网格类型
+ */
+type Grid = GridCell[][];
+
+/**
+ * 箭头信息
+ */
+interface ArrowInfo {
+    id: string;
+    cells: Position[];
+    layout: 'horizontal' | 'vertical';
+}
+
+/**
+ * 关卡生成器 - 基于二维表格填充
  *
  * 生成规则：
- * 1. 生成的箭头会占据位置，每个箭头占据的位置唯一，不可重叠
- * 2. 箭头不能有死锁情况（相对箭头或四方向互相牵制死锁）
- * 3. 箭头占据区域不能超过界面区域
+ * 1. 创建二维表格，从中心开始填充箭头占用
+ * 2. 每个箭头占据2个相邻格子，已填充格子不可重复使用
+ * 3. 填充完成后根据占用模式为每个箭头分配方向（仅2个可选）
  */
 export class LevelGenerator {
     private rows: number;
     private cols: number;
-    private occupiedGrid: boolean[][];
+    private grid: Grid;
+    private centerX: number;
+    private centerY: number;
 
     constructor(rows: number, cols: number) {
         this.rows = rows;
         this.cols = cols;
-        this.occupiedGrid = Array(rows)
+        this.centerX = Math.floor(cols / 2);
+        this.centerY = Math.floor(rows / 2);
+        this.grid = Array(rows)
             .fill(null)
-            .map(() => Array(cols).fill(false));
+            .map(() => Array(cols).fill(null));
     }
 
     /**
-     * 生成关卡数据
+     * 生成关卡数据 - 基于二维表格填充策略
      */
     generate(levelId: number, arrowCount: number = 3): LevelConfig {
         this.resetGrid();
-        const elements: ElementData[] = [];
 
-        for (let i = 0; i < arrowCount; i++) {
-            const arrow = this.generateArrow(`arrow-${i + 1}`);
-            if (arrow) {
-                elements.push(arrow);
-                this.markOccupied(arrow);
-            }
-        }
+        // 第一阶段：填充二维表格
+        const arrowInfos = this.fillGridWithArrows(arrowCount);
 
-        // 检查并修复死锁
-        this.resolveDeadlocks(elements);
+        // 第二阶段：根据占用模式分配方向
+        const elements = this.assignDirections(arrowInfos);
 
-        elements.forEach(element => {
-            element.width = 2;
-            element.height = 1;
-        });
+        // 检查并修复死锁 - 通过倒转方向解决
+        this.resolveDeadlocksByReversing(elements);
 
         return {
             id: levelId,
@@ -71,50 +86,201 @@ export class LevelGenerator {
     }
 
     /**
-     * 重置网格占用状态
+     * 重置网格状态
      */
     private resetGrid(): void {
-        this.occupiedGrid = Array(this.rows)
+        this.grid = Array(this.rows)
             .fill(null)
-            .map(() => Array(this.cols).fill(false));
+            .map(() => Array(this.cols).fill(null));
     }
 
     /**
-     * 生成单个箭头
+     * 第一阶段：填充二维表格
      */
-    private generateArrow(id: string): ElementData | null {
-        const maxAttempts = 100;
-        let attempts = 0;
+    private fillGridWithArrows(arrowCount: number): ArrowInfo[] {
+        const arrowInfos: ArrowInfo[] = [];
+        let placedCount = 0;
+        let radius = 0;
 
-        while (attempts < maxAttempts) {
-            const direction = this.getRandomDirection();
-            const { width, height } = this.getArrowDimensions(direction);
-            const position = this.getRandomPosition(width, height);
-
-            const arrow: ElementData = {
-                id,
-                type: 'arrow',
-                direction,
-                width,
-                height,
-                position,
-            };
-
-            if (this.isValidPosition(arrow)) {
-                return arrow;
+        while (placedCount < arrowCount && radius < Math.max(this.rows, this.cols)) {
+            if (radius === 0) {
+                // 尝试在中心点放置箭头
+                const centerResult = this.tryPlaceArrowAt(this.centerX, this.centerY, `arrow-${placedCount + 1}`);
+                if (centerResult) {
+                    arrowInfos.push(centerResult);
+                    placedCount++;
+                }
+                radius++;
+                continue;
             }
-            attempts++;
+
+            // 在当前半径的圆周上查找位置
+            const radiusPositions = this.getPositionsAtRadius(radius);
+
+            for (const pos of radiusPositions) {
+                if (placedCount >= arrowCount) break;
+
+                const arrowInfo = this.tryPlaceArrowAt(pos.x, pos.y, `arrow-${placedCount + 1}`);
+                if (arrowInfo) {
+                    arrowInfos.push(arrowInfo);
+                    placedCount++;
+                }
+            }
+
+            radius++;
+        }
+
+        return arrowInfos;
+    }
+
+    /**
+     * 获取指定半径上的所有可能位置
+     */
+    private getPositionsAtRadius(radius: number): Position[] {
+        const positions: Position[] = [];
+
+        for (let dx = -radius; dx <= radius; dx++) {
+            for (let dy = -radius; dy <= radius; dy++) {
+                // 只取圆周上的点（曼哈顿距离等于radius的点）
+                if (Math.abs(dx) + Math.abs(dy) === radius) {
+                    const x = this.centerX + dx;
+                    const y = this.centerY + dy;
+
+                    if (this.isWithinBounds(x, y)) {
+                        positions.push({ x, y });
+                    }
+                }
+            }
+        }
+
+        return positions;
+    }
+
+    /**
+     * 尝试在指定位置放置箭头
+     */
+    private tryPlaceArrowAt(x: number, y: number, arrowId: string): ArrowInfo | null {
+        // 随机决定尝试顺序
+        const tryHorizontalFirst = Math.random() < 0.5;
+
+        if (tryHorizontalFirst) {
+            // 先尝试水平布局
+            if (this.canPlaceHorizontal(x, y)) {
+                this.fillHorizontal(x, y, arrowId);
+                return {
+                    id: arrowId,
+                    cells: [
+                        { x, y },
+                        { x: x + 1, y },
+                    ],
+                    layout: 'horizontal',
+                };
+            }
+
+            // 再尝试垂直布局
+            if (this.canPlaceVertical(x, y)) {
+                this.fillVertical(x, y, arrowId);
+                return {
+                    id: arrowId,
+                    cells: [
+                        { x, y },
+                        { x, y: y + 1 },
+                    ],
+                    layout: 'vertical',
+                };
+            }
+        } else {
+            // 先尝试垂直布局
+            if (this.canPlaceVertical(x, y)) {
+                this.fillVertical(x, y, arrowId);
+                return {
+                    id: arrowId,
+                    cells: [
+                        { x, y },
+                        { x, y: y + 1 },
+                    ],
+                    layout: 'vertical',
+                };
+            }
+
+            // 再尝试水平布局
+            if (this.canPlaceHorizontal(x, y)) {
+                this.fillHorizontal(x, y, arrowId);
+                return {
+                    id: arrowId,
+                    cells: [
+                        { x, y },
+                        { x: x + 1, y },
+                    ],
+                    layout: 'horizontal',
+                };
+            }
         }
 
         return null;
     }
 
     /**
-     * 获取随机方向
+     * 检查是否可以水平放置
      */
-    private getRandomDirection(): ArrowDirection {
-        const directions = Object.values(ArrowDirection);
-        return directions[Math.floor(Math.random() * directions.length)];
+    private canPlaceHorizontal(x: number, y: number): boolean {
+        return x + 1 < this.cols && this.grid[y][x] === null && this.grid[y][x + 1] === null;
+    }
+
+    /**
+     * 检查是否可以垂直放置
+     */
+    private canPlaceVertical(x: number, y: number): boolean {
+        return y + 1 < this.rows && this.grid[y][x] === null && this.grid[y + 1][x] === null;
+    }
+
+    /**
+     * 填充水平箭头
+     */
+    private fillHorizontal(x: number, y: number, arrowId: string): void {
+        this.grid[y][x] = arrowId;
+        this.grid[y][x + 1] = arrowId;
+    }
+
+    /**
+     * 填充垂直箭头
+     */
+    private fillVertical(x: number, y: number, arrowId: string): void {
+        this.grid[y][x] = arrowId;
+        this.grid[y + 1][x] = arrowId;
+    }
+
+    /**
+     * 第二阶段：根据占用模式分配方向
+     */
+    private assignDirections(arrowInfos: ArrowInfo[]): ElementData[] {
+        return arrowInfos.map(arrowInfo => {
+            const direction = this.getDirectionForLayout(arrowInfo.layout);
+            const { width, height } = this.getArrowDimensions(direction);
+            const position = arrowInfo.cells[0]; // 使用第一个格子作为位置
+
+            return {
+                id: arrowInfo.id,
+                type: 'arrow',
+                direction,
+                width,
+                height,
+                position,
+            };
+        });
+    }
+
+    /**
+     * 根据布局模式获取方向
+     */
+    private getDirectionForLayout(layout: 'horizontal' | 'vertical'): ArrowDirection {
+        if (layout === 'horizontal') {
+            // 水平布局：随机选择左或右
+            return Math.random() < 0.5 ? ArrowDirection.LEFT : ArrowDirection.RIGHT;
+        } else {
+            // 垂直布局：随机选择上或下
+            return Math.random() < 0.5 ? ArrowDirection.UP : ArrowDirection.DOWN;
+        }
     }
 
     /**
@@ -134,86 +300,40 @@ export class LevelGenerator {
     }
 
     /**
-     * 获取随机位置
+     * 检查坐标是否在边界内
      */
-    private getRandomPosition(width: number = 2, height: number = 1): Position {
-        return {
-            x: Math.floor(Math.random() * (this.cols - width + 1)), // 确保箭头不超出边界
-            y: Math.floor(Math.random() * (this.rows - height + 1)), // 确保箭头不超出边界
-        };
+    private isWithinBounds(x: number, y: number): boolean {
+        return x >= 0 && y >= 0 && x < this.cols && y < this.rows;
     }
 
     /**
-     * 验证位置是否有效（规则1：不重叠，规则3：不超出界面区域）
+     * 通过倒转方向解决死锁问题
      */
-    private isValidPosition(arrow: ElementData): boolean {
-        const { position, width, height } = arrow;
-        const { x, y } = position;
-
-        // 规则3：检查箭头占据区域不能超过界面区域
-        if (!this.isWithinBoundary(x, y, width, height)) {
-            return false;
-        }
-
-        // 规则1：检查占用情况（箭头不能重叠）
-        for (let row = y; row < y + height; row++) {
-            for (let col = x; col < x + width; col++) {
-                if (this.occupiedGrid[row][col]) {
-                    return false;
-                }
-            }
-        }
-
-        return true;
-    }
-
-    /**
-     * 检查箭头是否在界面边界内（规则3：箭头占据区域不能超过界面区域）
-     */
-    private isWithinBoundary(x: number, y: number, width: number, height: number): boolean {
-        // 检查左上角和右下角都在有效范围内
-        return (
-            x >= 0 && // 左边界
-            y >= 0 && // 上边界
-            x + width <= this.cols && // 右边界
-            y + height <= this.rows // 下边界
-        );
-    }
-
-    /**
-     * 标记网格为已占用
-     */
-    private markOccupied(arrow: ElementData): void {
-        const { position, width, height } = arrow;
-        const { x, y } = position;
-
-        for (let row = y; row < y + height; row++) {
-            for (let col = x; col < x + width; col++) {
-                this.occupiedGrid[row][col] = true;
-            }
-        }
-    }
-
-    /**
-     * 检测并解决死锁问题
-     */
-    private resolveDeadlocks(elements: ElementData[]): void {
+    private resolveDeadlocksByReversing(elements: ElementData[]): void {
         const deadlockPairs = this.detectDeadlocks(elements);
 
-        // 移动冲突的箭头到新位置
+        // 通过倒转其中一个箭头的方向来解决死锁
         deadlockPairs.forEach(pair => {
             const [arrow1, arrow2] = pair;
 
-            // 选择其中一个箭头重新定位
-            const arrowToMove = Math.random() < 0.5 ? arrow1 : arrow2;
-            this.clearOccupied(arrowToMove);
-
-            const newPosition = this.findSafePosition(arrowToMove);
-            if (newPosition) {
-                arrowToMove.position = newPosition;
-                this.markOccupied(arrowToMove);
-            }
+            // 随机选择其中一个箭头倒转方向
+            const arrowToReverse = Math.random() < 0.5 ? arrow1 : arrow2;
+            arrowToReverse.direction = this.reverseDirection(arrowToReverse.direction);
         });
+    }
+
+    /**
+     * 倒转箭头方向
+     */
+    private reverseDirection(direction: string): string {
+        const reverseMap: { [key: string]: string } = {
+            [ArrowDirection.UP]: ArrowDirection.DOWN,
+            [ArrowDirection.DOWN]: ArrowDirection.UP,
+            [ArrowDirection.LEFT]: ArrowDirection.RIGHT,
+            [ArrowDirection.RIGHT]: ArrowDirection.LEFT,
+        };
+
+        return reverseMap[direction] || direction;
     }
 
     /**
@@ -284,41 +404,6 @@ export class LevelGenerator {
         }
 
         return false;
-    }
-
-    /**
-     * 清除箭头占用的网格
-     */
-    private clearOccupied(arrow: ElementData): void {
-        const { position, width, height } = arrow;
-        const { x, y } = position;
-
-        for (let row = y; row < y + height; row++) {
-            for (let col = x; col < x + width; col++) {
-                this.occupiedGrid[row][col] = false;
-            }
-        }
-    }
-
-    /**
-     * 为箭头寻找安全位置（遵循所有生成规则）
-     */
-    private findSafePosition(arrow: ElementData): Position | null {
-        const maxAttempts = 50;
-        let attempts = 0;
-
-        while (attempts < maxAttempts) {
-            const position = this.getRandomPosition(arrow.width, arrow.height);
-            const testArrow = { ...arrow, position };
-
-            // 验证位置是否满足所有规则（边界检查 + 不重叠）
-            if (this.isValidPosition(testArrow)) {
-                return position;
-            }
-            attempts++;
-        }
-
-        return null;
     }
 }
 

@@ -224,61 +224,22 @@ class StaticElement extends AnimeBase {
         return { minX, maxX, minY, maxY };
     }
 
-    /**
-     * 根据方向转换网格坐标到像素坐标
-     */
-    private _convertGridToPixelPosition(
-        gridPosition: { x: number; y: number },
-        gridSize: number,
-        direction: string,
-    ): { x: number; y: number } {
-        switch (direction) {
-            case 'up':
-                return {
-                    x: gridPosition.x * gridSize,
-                    y: (gridPosition.y - 1) * gridSize,
-                };
-            case 'right':
-            case 'down':
-                return {
-                    x: gridPosition.x * gridSize,
-                    y: gridPosition.y * gridSize,
-                };
-            case 'left':
-                return {
-                    x: (gridPosition.x - 1) * gridSize,
-                    y: gridPosition.y * gridSize,
-                };
-            default:
-                return {
-                    x: gridPosition.x * gridSize,
-                    y: gridPosition.y * gridSize,
-                };
-        }
-    }
-
     // #region 熟悉获取 设置
     get position() {
         const gridSize = this._owner?.gridSize;
         if (!gridSize) return this._position;
 
-        return this._convertGridToPixelPosition(this._position, gridSize, this._direction);
+        return {
+            x: this._position.x * gridSize,
+            y: this._position.y * gridSize,
+        };
     }
 
     get width() {
         const gridSize = this._owner?.gridSize;
         if (!gridSize) return this._width;
 
-        switch (this._direction) {
-            case 'down':
-            case 'up':
-                return this._height * gridSize;
-            case 'right':
-            case 'left':
-                return this._width * gridSize;
-            default:
-                return this._width * gridSize;
-        }
+        return this._width * gridSize;
     }
 
     set width(value: number) {
@@ -288,17 +249,7 @@ class StaticElement extends AnimeBase {
     get height() {
         const gridSize = this._owner?.gridSize;
         if (!gridSize) return this._height;
-
-        switch (this._direction) {
-            case 'down':
-            case 'up':
-                return this._width * gridSize;
-            case 'right':
-            case 'left':
-                return this._height * gridSize;
-            default:
-                return this._height * gridSize;
-        }
+        return this._height * gridSize;
     }
 
     set height(value: number) {
