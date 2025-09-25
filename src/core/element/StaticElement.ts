@@ -42,8 +42,7 @@ class StaticElement extends AnimeBase {
 
     protected _createElementDom(): void {
         this._elementDom = document.createElement('div');
-        this._elementDom.style.position = 'absolute';
-        this._elementDom.style.backgroundColor = 'red';
+        this._elementDom.className = 'element';
 
         this._addEventListener();
     }
@@ -155,8 +154,8 @@ class StaticElement extends AnimeBase {
         // 更新DOM样式
         this._updateDOMStyle();
 
-        this._owner?.updateGridData();
         const isColliding = this._owner?.checkInAnimeElementStatus(this);
+        this._owner?.updateGridData();
 
         // 继续动画
         if (!isColliding) {
@@ -180,30 +179,6 @@ class StaticElement extends AnimeBase {
             default:
                 return { dx: 0, dy: 0 };
         }
-    };
-
-    /**
-     * @description 检查是否超出边界（浏览器窗口边界）
-     */
-    private _isOutOfBounds = (x: number, y: number) => {
-        const gridSize = this._owner?.gridSize;
-        if (!gridSize) return false;
-
-        // 获取浏览器窗口尺寸
-        const screenWidth = window.innerWidth;
-        const screenHeight = window.innerHeight;
-
-        // 将网格坐标转换为像素坐标
-        const position = this._convertGridToPixelPosition({ x, y }, gridSize, this._direction);
-        const elementWidth = this.width;
-        const elementHeight = this.height;
-
-        return (
-            position.x + elementWidth! <= 0 ||
-            position.y + elementHeight! <= 0 ||
-            position.x >= screenWidth ||
-            position.y >= screenHeight
-        );
     };
 
     /**
@@ -301,7 +276,13 @@ class StaticElement extends AnimeBase {
             case 'right':
             case 'left':
                 return this._width * gridSize;
+            default:
+                return this._width * gridSize;
         }
+    }
+
+    set width(value: number) {
+        this._width = value;
     }
 
     get height() {
@@ -315,7 +296,13 @@ class StaticElement extends AnimeBase {
             case 'right':
             case 'left':
                 return this._height * gridSize;
+            default:
+                return this._height * gridSize;
         }
+    }
+
+    set height(value: number) {
+        this._height = value;
     }
 
     get active() {

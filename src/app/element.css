@@ -1,0 +1,18 @@
+.element {
+    cursor: pointer;
+    position: absolute;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.arrow-element {
+    background-color: #d2d0ce;
+    font-size: 30px;
+    color: #000;
+    border-radius: 5px;
+}
+
+.arrow-element:hover {
+    background-color: #fff;
+}

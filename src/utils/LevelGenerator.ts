@@ -57,6 +57,11 @@ export class LevelGenerator {
         // 检查并修复死锁
         this.resolveDeadlocks(elements);
 
+        elements.forEach(element => {
+            element.width = 2;
+            element.height = 1;
+        });
+
         return {
             id: levelId,
             rows: this.rows,

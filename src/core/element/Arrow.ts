@@ -10,15 +10,9 @@ class Arrow extends StaticElement {
     }
 
     protected _createElementDom(): void {
-        this._elementDom = document.createElement('div');
-        this._elementDom.style.position = 'absolute';
-        this._elementDom.style.display = 'flex';
-        this._elementDom.style.alignItems = 'center';
-        this._elementDom.style.justifyContent = 'center';
-        this._elementDom.style.fontSize = '24px';
-        this._elementDom.style.color = '#333';
-        this._elementDom.style.backgroundColor = '#e0e0e0';
-        this._elementDom.style.borderRadius = '4px';
+        super._createElementDom();
+        if (!this._elementDom) return;
+        this._elementDom.classList.add('arrow-element');
 
         // 根据方向设置箭头符号
         const arrowSymbols = {
