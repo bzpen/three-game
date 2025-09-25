@@ -34,6 +34,10 @@ class LeverManager {
     public getLevelDataByIndex(index: number) {
         return this.levelDataList[index];
     }
+
+    public getTotalLevels(): number {
+        return this.levelDataList.length;
+    }
 }
 
 const leverManager = new LeverManager();
