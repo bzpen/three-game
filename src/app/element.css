@@ -17,12 +17,11 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background-color: #d2d0ce;
-    border-radius: 10px;
+    opacity: 0.8;
 }
 
 .arrow-content:hover {
-    background-color: #fff;
+    opacity: 1;
 }
 
 /* 编辑器模式样式 */
