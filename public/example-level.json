@@ -1,5 +1,5 @@
 {
-    "id": 1758850768092,
+    "id": 1758858127087,
     "rows": 20,
     "cols": 20,
     "elements": [
@@ -199,17 +199,6 @@
             "position": {
                 "x": 11,
                 "y": 13
-            }
-        },
-        {
-            "id": "arrow-24",
-            "type": "arrow",
-            "direction": "down",
-            "width": 1,
-            "height": 2,
-            "position": {
-                "x": 13,
-                "y": 7
             }
         },
         {
