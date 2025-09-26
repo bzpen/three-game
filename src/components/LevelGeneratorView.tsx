@@ -44,20 +44,7 @@ const GeneratorBoard = ({ levelConfig, gridSize }: GeneratorBoardProps) => {
                 gridTemplateColumns: `repeat(${cols}, ${gridSize}px)`,
                 gridTemplateRows: `repeat(${rows}, ${gridSize}px)`,
             }}
-        >
-            {new Array(rows * cols).fill(0).map((_, index) => {
-                return (
-                    <div
-                        className='border border-black/5 dark:border-white/10'
-                        key={index}
-                        style={{
-                            gridColumn: (index % cols) + 1,
-                            gridRow: Math.floor(index / cols) + 1,
-                        }}
-                    ></div>
-                );
-            })}
-        </div>
+        ></div>
     );
 };
 

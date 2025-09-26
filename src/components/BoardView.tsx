@@ -74,20 +74,7 @@ const BoardView = ({ levelData, nextLevel }: { levelData: LevelConfig; nextLevel
                 gridTemplateColumns: `repeat(${cols}, ${gridSize}px)`,
                 gridTemplateRows: `repeat(${rows}, ${gridSize}px)`,
             }}
-        >
-            {new Array(rows * cols).fill(0).map((_, row) => {
-                return (
-                    <div
-                        className='border border-black/5'
-                        key={`${row}`}
-                        style={{
-                            gridColumn: row % cols,
-                            gridRow: Math.floor(row / cols),
-                        }}
-                    ></div>
-                );
-            })}
-        </div>
+        ></div>
     );
 };
 

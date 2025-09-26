@@ -14,6 +14,10 @@ class Arrow extends StaticElement {
         if (!this._elementDom) return;
         this._elementDom.classList.add('arrow-element');
 
+        const contentDom = document.createElement('div');
+        contentDom.className = 'arrow-content';
+        this._elementDom.appendChild(contentDom);
+
         // 根据方向设置箭头符号
         const arrowSymbols = {
             up: '↑',
@@ -21,7 +25,7 @@ class Arrow extends StaticElement {
             left: '←',
             right: '→',
         };
-        this._elementDom.textContent = arrowSymbols[this._direction as keyof typeof arrowSymbols] || '→';
+        contentDom.textContent = arrowSymbols[this._direction as keyof typeof arrowSymbols] || '→';
 
         this._addEventListener();
     }
