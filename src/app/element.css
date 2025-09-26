@@ -11,10 +11,6 @@
     /* border-radius: 5px; */
 }
 
-.arrow-element:hover {
-    background-color: #fff;
-}
-
 .arrow-content {
     width: calc(100% - 4px);
     height: calc(100% - 2px);
@@ -23,4 +19,8 @@
     justify-content: center;
     background-color: #d2d0ce;
     border-radius: 10px;
+}
+
+.arrow-content:hover {
+    background-color: #fff;
 }
