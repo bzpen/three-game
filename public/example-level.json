@@ -1,5 +1,5 @@
 {
-    "id": 1758858127087,
+    "id": 1758859566441,
     "rows": 20,
     "cols": 20,
     "elements": [
@@ -99,17 +99,6 @@
             "height": 1,
             "position": {
                 "x": 10,
-                "y": 8
-            }
-        },
-        {
-            "id": "arrow-11",
-            "type": "arrow",
-            "direction": "down",
-            "width": 1,
-            "height": 2,
-            "position": {
-                "x": 12,
                 "y": 8
             }
         },
@@ -983,17 +972,6 @@
             }
         },
         {
-            "id": "arrow-91",
-            "type": "arrow",
-            "direction": "down",
-            "width": 1,
-            "height": 2,
-            "position": {
-                "x": 17,
-                "y": 6
-            }
-        },
-        {
             "id": "arrow-92",
             "type": "arrow",
             "direction": "right",
@@ -1090,6 +1068,17 @@
             "position": {
                 "x": 2,
                 "y": 17
+            }
+        },
+        {
+            "id": "arrow-1758859562003",
+            "type": "arrow",
+            "direction": "up",
+            "width": 1,
+            "height": 2,
+            "position": {
+                "x": 17,
+                "y": 6
             }
         }
     ]
