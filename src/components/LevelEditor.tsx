@@ -10,6 +10,8 @@ const LevelEditor = () => {
     const [editMode, setEditMode] = useState<'normal' | 'delete'>('normal');
     const [draggingElement, setDraggingElement] = useState<string | null>(null);
     const [levelData, setLevelData] = useState<LevelConfig | null>(null);
+    const [dragOverPosition, setDragOverPosition] = useState<{ x: number; y: number } | null>(null);
+    const [fillCount, setFillCount] = useState(5);
 
     const boardViewRef = useRef<HTMLDivElement>(null);
     const editorGameViewRef = useRef<EditorGameView | null>(null);
@@ -86,6 +88,7 @@ const LevelEditor = () => {
     // 处理工具栏拖拽结束
     const handleToolbarDragEnd = () => {
         setDraggingElement(null);
+        setDragOverPosition(null);
         if (editorGameViewRef.current) {
             editorGameViewRef.current.setDraggingElementType(null);
         }
@@ -102,12 +105,32 @@ const LevelEditor = () => {
         if (editorGameViewRef.current) {
             editorGameViewRef.current.handleCanvasDragOver(event.nativeEvent);
         }
+
+        // 计算拖拽位置
+        if (draggingElement) {
+            const rect = boardViewRef.current?.getBoundingClientRect();
+            if (rect) {
+                const x = event.clientX - rect.left;
+                const y = event.clientY - rect.top;
+                const gridX = Math.floor(x / gridSize);
+                const gridY = Math.floor(y / gridSize);
+
+                // 确保在网格范围内
+                if (gridX >= 0 && gridX < cols && gridY >= 0 && gridY < rows) {
+                    setDragOverPosition({ x: gridX, y: gridY });
+                } else {
+                    setDragOverPosition(null);
+                }
+            }
+        }
     };
 
     const handleCanvasDrop = (event: React.DragEvent) => {
         if (editorGameViewRef.current) {
             editorGameViewRef.current.handleCanvasDrop(event.nativeEvent);
         }
+        // 清除拖拽占位
+        setDragOverPosition(null);
     };
 
     // 切换删除模式
@@ -139,6 +162,19 @@ const LevelEditor = () => {
             link.download = `level-${data.id}.json`;
             link.click();
             URL.revokeObjectURL(url);
+        }
+    };
+
+    // 填充箭头
+    const fillArrows = () => {
+        if (editorGameViewRef.current) {
+            const addedElements = editorGameViewRef.current.fillArrows(fillCount);
+            console.log(`智能填充完成，成功添加了 ${addedElements.length} 个箭头`);
+            if (addedElements.length < fillCount) {
+                console.log(
+                    `注意：由于死锁检测和布局规则，实际添加了 ${addedElements.length} 个箭头，少于请求的 ${fillCount} 个`,
+                );
+            }
         }
     };
 
@@ -187,6 +223,32 @@ const LevelEditor = () => {
                             {new Array(rows * cols).fill(0).map((_, index) => {
                                 return <div key={index} className='border border-black/5 dark:border-white/10'></div>;
                             })}
+
+                            {/* 拖拽占位区域 */}
+                            {dragOverPosition && draggingElement && (
+                                <div
+                                    className='absolute border-2 border-dashed border-blue-500 bg-blue-100/50 dark:bg-blue-900/30 pointer-events-none'
+                                    style={{
+                                        left: dragOverPosition.x * gridSize,
+                                        top: dragOverPosition.y * gridSize,
+                                        width:
+                                            draggingElement === 'left' || draggingElement === 'right'
+                                                ? gridSize * 2
+                                                : gridSize,
+                                        height:
+                                            draggingElement === 'up' || draggingElement === 'down'
+                                                ? gridSize * 2
+                                                : gridSize,
+                                    }}
+                                >
+                                    <div className='w-full h-full flex items-center justify-center text-blue-600 dark:text-blue-400 font-bold text-lg'>
+                                        {draggingElement === 'up' && '↑'}
+                                        {draggingElement === 'down' && '↓'}
+                                        {draggingElement === 'left' && '←'}
+                                        {draggingElement === 'right' && '→'}
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -224,6 +286,30 @@ const LevelEditor = () => {
                                     </div>
                                 </div>
                             ))}
+                        </div>
+                    </div>
+
+                    {/* 填充控制 */}
+                    <div className='mb-6'>
+                        <h4 className='text-sm font-medium mb-3 text-gray-600 dark:text-gray-400'>填充控制</h4>
+                        <div className='space-y-3'>
+                            <div>
+                                <label className='block text-xs text-gray-500 dark:text-gray-400 mb-1'>填充数量</label>
+                                <input
+                                    type='number'
+                                    min='1'
+                                    max='20'
+                                    value={fillCount}
+                                    onChange={e => setFillCount(parseInt(e.target.value) || 1)}
+                                    className='w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100'
+                                />
+                            </div>
+                            <button
+                                onClick={fillArrows}
+                                className='w-full px-3 py-2 text-sm bg-green-500 hover:bg-green-600 text-white rounded-md transition-colors'
+                            >
+                                智能填充 {fillCount} 个箭头
+                            </button>
                         </div>
                     </div>
 
