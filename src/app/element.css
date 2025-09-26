@@ -24,3 +24,18 @@
 .arrow-content:hover {
     background-color: #fff;
 }
+
+/* 编辑器模式样式 */
+.delete-mode {
+    cursor: crosshair !important;
+    opacity: 0.7;
+}
+
+.delete-mode .arrow-content {
+    background-color: #ff6b6b !important;
+    color: white !important;
+}
+
+.delete-mode:hover .arrow-content {
+    background-color: #ff5252 !important;
+}
